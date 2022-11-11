@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WS Test Client</title>
+</head>
+<body>
+    <div>
+        <button id="connect">Connect</button><button id="disconnect">Disconnect</button><button id="abandon">Abandon</button><br>
+        <input placeholder="Message"></input><button id="send">Send</button>
+    </div>
+    <script>
+        const HOST = 'plotter-server.local';
+        const PORT = '4321';
+        
+        let ws;
+        
+        function connect() {
+            ws = new WebSocket(`ws://${HOST}:${PORT}`);
+            ws.onopen = (e) => {
+                console.log('Connection open', e);
+            };
+            
+            ws.onmessage = (e) => {
+                console.log('Message', e.data, e);
+            };
+            
+            ws.onerror = (e) => {
+                console.log('Connection error', e);
+                ws = null;
+            };
+            
+            ws.onclose = (e) => {
+                console.log('Connection closed', e);
+                ws = null;
+            };
+        }
+        
+        function disconnect() {
+            ws?.close(1000, 'disconnect');
+        }
+        
+        function abandon() {
+            console.log("Abandon connection")
+            if (ws) {
+                ws.onopen = undefined;
+                ws.onmessage = undefined;
+                ws.onerror = undefined;
+                ws.onclose = undefined;
+            }
+            ws = undefined;
+        }
+        
+        const input = document.querySelector('input');
+        const btn_send = document.querySelector('#send');
+        const btn_connect = document.querySelector('#connect');
+        const btn_disconnect = document.querySelector('#disconnect');
+        const btn_abandon = document.querySelector('#abandon');
+        
+        function send() {
+            if (ws) {
+                const msg = input.value;
+                input.value = '';
+                ws.send(msg);
+            }
+        }
+        
+        btn_send.onmousedown = send;
+        btn_connect.onmousedown = connect;
+        btn_disconnect.onmousedown = disconnect;
+        btn_abandon.onmousedown = abandon;
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') send();
+        }
+        
+    </script>
+</body>
+</html>
