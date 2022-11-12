@@ -61,6 +61,9 @@ def remove_prompt():
     global prompt
     del prompt # force destructor, causes terminal to restore
 
+def disable_sigint():
+    signal.signal(signal.SIGINT, lambda *args: None) 
+
 def add_zeroconf_service():
     global zc
     print('Registering zeroconf service...')
@@ -158,4 +161,5 @@ if __name__ == '__main__':
     except:
         traceback.print_exception( sys.exception() )
     finally:
+        disable_sigint() # prevent another Control-C
         quit()
