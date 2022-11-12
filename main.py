@@ -9,6 +9,7 @@ import json
 import traceback
 import sys
 import spooler
+import async_prompt
 
 HOSTNAME='plotter-server'
 PORT=4321
@@ -124,11 +125,15 @@ async def handle_connection(ws):
     print_status()
 
 async def main():
+    global print
+    prompt = async_prompt.AsyncPrompt()
+    print = prompt.print # replace global print function
+    
     async with websockets.serve(handle_connection, "0.0.0.0", PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT):
         print("Server running...")
         spooler.set_queue_size_cb(on_queue_size)
         # await asyncio.Future() # run forever
-        await spooler.start(print_status) # run forever
+        await spooler.start(prompt, print_status) # run forever
 
 def quit():
     print('Quitting...')

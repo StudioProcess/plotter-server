@@ -1,6 +1,5 @@
 import asyncio
 from pyaxidraw import axidraw
-from asyncprompt import AsyncPrompt
 
 SIMULATE_PLOT_TIME = 10
 
@@ -113,10 +112,11 @@ async def align_async():
 
 
 
-async def start(print_status):
+async def start(prompt, print_status):
     global current_job
     global _status
-    prompt = AsyncPrompt()
+    global print
+    print = prompt.print # replace global print function
     
     await align_async()
     
