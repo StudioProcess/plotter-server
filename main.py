@@ -8,6 +8,7 @@ import time
 import json
 import traceback
 import sys
+import signal
 import spooler
 import async_prompt
 
@@ -16,6 +17,7 @@ PORT=4321
 PING_INTERVAL=10
 PING_TIMEOUT=5
 
+prompt = None
 zc = None
 num_clients = 0
 clients = []
@@ -48,6 +50,16 @@ def col_num(n):
 def print_status():
     s = spooler.status()
     print(f'  Jobs: {col_num(s["queue_size"])}  |  Clients: {col_num(len(clients))}  |  Status: {status_str(s)}\n')
+
+def setup_prompt():
+    global prompt
+    global print
+    prompt = async_prompt.AsyncPrompt()
+    print = prompt.print # replace global print function
+
+def remove_prompt():
+    global prompt
+    del prompt # force destructor, causes terminal to restore
 
 def add_zeroconf_service():
     global zc
@@ -125,10 +137,7 @@ async def handle_connection(ws):
     print_status()
 
 async def main():
-    global print
-    prompt = async_prompt.AsyncPrompt()
-    print = prompt.print # replace global print function
-    
+    setup_prompt() # needs to be called within event loop
     async with websockets.serve(handle_connection, "0.0.0.0", PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT):
         print("Server running...")
         spooler.set_queue_size_cb(on_queue_size)
@@ -137,6 +146,7 @@ async def main():
 
 def quit():
     print('Quitting...')
+    remove_prompt()
     remove_zeroconf_service()
 
 if __name__ == '__main__':
