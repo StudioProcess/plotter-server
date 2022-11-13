@@ -90,7 +90,14 @@ def align():
     ad.plot_setup()
     ad.options.mode = 'align' # A setup mode: Raise pen, disable XY stepper motors
     ad.plot_run()
+    return ad.errors.code
 
+# Return codes:
+# 0	  .. No error; operation nominal
+# 101 .. Failed to connect
+# 102 .. Stopped by pause button press
+# 103 .. Stopped by keyboard interrupt (if enabled)
+# 104 .. Lost USB connectivity
 def plot(job, align_after = True):
     ad = axidraw.AxiDraw()
     ad.plot_setup(job['svg'])
@@ -103,12 +110,13 @@ def plot(job, align_after = True):
     ad.options.pen_rate_raise = 100
     ad.plot_run()
     if align_after: align()
+    return ad.errors.code
 
 async def plot_async(*args):
-    await asyncio.to_thread(plot, *args)
+    return await asyncio.to_thread(plot, *args)
 
 async def align_async():
-    await asyncio.to_thread(align)
+    return await asyncio.to_thread(align)
 
 
 
