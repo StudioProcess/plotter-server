@@ -92,6 +92,13 @@ async def finish_current_job():
     _status = 'waiting'
     return True
 
+def job_str(job):
+    info = '[' + str(job["client"])[0:8] + ']'
+    if 'stats' in job:
+        stats = job['stats']
+        if 'count' in stats and 'travel' in stats and 'travel_ink' in stats:
+            info += f' ({stats["count"]} lines, {int(stats["travel_ink"])}/{int(stats["travel"])} mm)'
+    return info
 
 
 # Return codes
@@ -174,7 +181,7 @@ async def start(prompt, print_status):
         if not current_job['cancel']: # skip if job is canceled
             _status = 'confirm_plot'
             print_status()
-            ready = await prompt_start_plot(f'Ready to plot job {current_job["client"]} (Return to start, C to cancel, A to align, O to cycle)? ')
+            ready = await prompt_start_plot(f'Ready to plot job {job_str(current_job)} (Return to start, C to cancel, A to align, O to cycle)? ')
             if not ready:
                 await cancel(current_job['client'], force = True)
                 _status = 'waiting'
