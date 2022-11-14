@@ -1,8 +1,12 @@
 import asyncio
 from pyaxidraw import axidraw
 from tty_colors import COL
+from datetime import datetime, timezone
+import os
 
-SIMULATE_PLOT_TIME = 10
+FOLDER_WAITING  ='svgs/0_waiting'
+FOLDER_CANCELED ='svgs/1_canceled'
+FOLDER_FINISHED ='svgs/2_finished'
 
 queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue 
@@ -41,7 +45,36 @@ def status():
         'queue_size': queue_size(),
     }
 
+def timestamp(date = None):
+    if date == None: 
+        # make timezone aware timestamp: https://stackoverflow.com/a/39079819
+        date = datetime.now(timezone.utc)
+        date = date.replace(tzinfo=date.astimezone().tzinfo)
+    return date.strftime("%Y%m%d_%H%M%S.%f_UTC%z")
 
+# status: 'waiting' | 'canceled' | 'finished'
+def save_svg(job, status):
+    if status not in ['waiting', 'canceled', 'finished']:
+        return False
+    filename = f'{job["received"]}_{job["client"][0:8]}_{job["hash"][0:5]}.svg'
+    files = {
+        'waiting': os.path.join(FOLDER_WAITING, filename),
+        'canceled': os.path.join(FOLDER_CANCELED, filename),
+        'finished': os.path.join(FOLDER_FINISHED, filename),
+    }
+    for key, file in files.items():
+        if key == status:
+            os.makedirs( os.path.dirname(file), exist_ok=True)
+            with open(file, 'w', encoding='utf-8') as f: f.write(job['svg'])
+        else:
+            try:
+                os.remove(file)
+            except:
+                pass
+    return True
+    
+def save_svg_async(job, status):
+    return asyncio.to_thread(save_svg, job, status)
 
 # job: 'client', 'lines'
 # todo: don't wait on callbacks
@@ -57,6 +90,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     job['done_cb'] = done_cb
     job['cancel_cb'] = cancel_cb
     job['error_cb'] = error_cb
+    job['received'] = timestamp()
     
     # add to jobs index
     jobs[ job['client'] ] = job
@@ -64,6 +98,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     await _notify_queue_positions()
     await queue.put(job)
     print(f'New job {job["client"]}')
+    await save_svg_async(job, 'waiting')
     return True
 
 async def cancel(client, force = False):
@@ -81,6 +116,7 @@ async def cancel(client, force = False):
     await _notify_queue_size() # notify new queue size
     await _notify_queue_positions() # notify queue positions (might have changed for some)
     print(f'Canceled job {job["client"]}')
+    await save_svg_async(job, 'canceled')
     return True
 
 async def finish_current_job():
@@ -90,6 +126,7 @@ async def finish_current_job():
     await _notify_queue_size() # notify queue size
     print(f'Finished job {current_job["client"]}')
     _status = 'waiting'
+    await save_svg_async(current_job, 'finished')
     return True
 
 def job_str(job):
