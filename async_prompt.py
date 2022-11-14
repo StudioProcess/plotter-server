@@ -56,7 +56,6 @@ class AsyncPrompt:
         return await self.queue.get()
     
     async def wait_for(self, chars, message = '? ', echo = True, echo_end = '\n'):
-        chars = list(map(lambda ch: chr(ch) if type(ch) == int else ch, chars))
         res = None
         while res not in chars:
             res = await self.prompt(message, echo)

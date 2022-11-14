@@ -1,5 +1,6 @@
 import asyncio
 from pyaxidraw import axidraw
+from tty_colors import COL
 
 SIMULATE_PLOT_TIME = 10
 
@@ -66,7 +67,6 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     return True
 
 async def cancel(client, force = False):
-    print('canceling ')
     if not force:
         if current_job != None and current_job['client'] == client:
             await callback( current_job['error_cb'], 'cannot cancel, already plotting', current_job )
@@ -83,8 +83,27 @@ async def cancel(client, force = False):
     print(f'Canceled job {job["client"]}')
     return True
 
+async def finish_current_job():
+    await callback( current_job['done_cb'], current_job ) # notify job done
+    del jobs[ current_job['client'] ] # remove from jobs index
+    await _notify_queue_positions() # notify queue positions. current job is 0
+    await _notify_queue_size() # notify queue size
+    print(f'Finished job {current_job["client"]}')
+    _status = 'waiting'
+    return True
 
 
+
+# Return codes
+PLOTTER_ERRORS = {
+    0: 'No error; operation nominal',
+    101: 'Failed to connect',
+    102: 'Stopped by pause button press',
+    103: 'Stopped by keyboard interrupt',
+    104: 'Lost USB connectivity'
+}
+
+# Raise pen and disable XY stepper motors
 def align():
     ad = axidraw.AxiDraw()
     ad.plot_setup()
@@ -92,12 +111,14 @@ def align():
     ad.plot_run()
     return ad.errors.code
 
-# Return codes:
-# 0	  .. No error; operation nominal
-# 101 .. Failed to connect
-# 102 .. Stopped by pause button press
-# 103 .. Stopped by keyboard interrupt (if enabled)
-# 104 .. Lost USB connectivity
+# Cycle the pen down and back up
+def cycle():
+    ad = axidraw.AxiDraw()
+    ad.plot_setup()
+    ad.options.mode = 'cycle' # A setup mode: Lower and then raise the pen
+    ad.plot_run()
+    return ad.errors.code
+
 def plot(job, align_after = True):
     ad = axidraw.AxiDraw()
     ad.plot_setup(job['svg'])
@@ -118,6 +139,9 @@ async def plot_async(*args):
 async def align_async():
     return await asyncio.to_thread(align)
 
+async def cycle_async():
+    return await asyncio.to_thread(cycle)
+
 
 
 async def start(prompt, print_status):
@@ -125,6 +149,20 @@ async def start(prompt, print_status):
     global _status
     global print
     print = prompt.print # replace global print function
+    
+    async def prompt_start_plot(message, keys = [chr(13), 'c', 'a', 'o']):
+        while True:
+            res = await prompt.wait_for( keys, message, echo=True )
+            if res == keys[0]: # Start Plot
+                return True
+            elif res == keys[2]: # Align
+                print('Aligning...')
+                await align_async() # -> prompt again
+            elif res == keys[3]: # Cycle
+                print('Cycling...')
+                await cycle_async() # -> prompt again
+            else: # C .. Cancel
+                return False
     
     await align_async()
     
@@ -136,22 +174,28 @@ async def start(prompt, print_status):
         if not current_job['cancel']: # skip if job is canceled
             _status = 'confirm_plot'
             print_status()
-            res = await prompt.wait_for( [13, 'c'], f'Ready to plot job {current_job["client"]} (Press Return to start, C to cancel)? ', echo=True)
-            if res == 'c': # cancel
+            ready = await prompt_start_plot(f'Ready to plot job {current_job["client"]} (Return to start, C to cancel, A to align, O to cycle)? ')
+            if not ready:
                 await cancel(current_job['client'], force = True)
                 _status = 'waiting'
                 continue # skip over rest of the loop
             
-            print(f'Plotting job {current_job["client"]}...')
-            _status = 'plotting'
-            await _notify_queue_positions() # notify plotting
-            print_status()
-            await plot_async(current_job)
-            print(f'Finished job {current_job["client"]}')
+            # plot (and retry on error)
+            while True:
+                print(f'Plotting job {current_job["client"]}...')
+                _status = 'plotting'
+                await _notify_queue_positions() # notify plotting
+                error = await plot_async(current_job)
+                if error == 0:
+                    await finish_current_job()
+                    break
+                else:
+                    print(f'{COL.YELLOW if error in [102,103] else COL.RED}Plotter: {PLOTTER_ERRORS[error]}{COL.OFF}')
+                    _status = 'confirm_plot'
+                    ready = await prompt_start_plot(f'Retry job {current_job["client"]} (Return to start, C to cancel, A to align, O to cycle ? ')
+                    if not ready:
+                        await cancel(current_job['client'], force = True)
+                        break
+
             _status = 'waiting'
-            
-            await callback( current_job['done_cb'], current_job ) # notify job done
-            del jobs[ current_job['client'] ] # remove from jobs index
-            await _notify_queue_positions() # notify queue positions. current job is 0
-            await _notify_queue_size() # notify queue size
         current_job = None

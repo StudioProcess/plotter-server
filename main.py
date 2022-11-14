@@ -11,6 +11,7 @@ import sys
 import signal
 import spooler
 import async_prompt
+from tty_colors import COL
 
 HOSTNAME='plotter-server'
 PORT=4321
@@ -21,16 +22,6 @@ prompt = None
 zc = None
 num_clients = 0
 clients = []
-
-class COL:
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    OFF = '\033[0m'
 
 def status_str(status):
     match status['status']:
