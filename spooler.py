@@ -73,8 +73,8 @@ def save_svg(job, status):
                 pass
     return True
     
-def save_svg_async(job, status):
-    return asyncio.to_thread(save_svg, job, status)
+def save_svg_async(*args):
+    return asyncio.to_thread(save_svg, *args)
 
 # job: 'client', 'lines'
 # todo: don't wait on callbacks
@@ -164,15 +164,21 @@ def cycle():
     return ad.errors.code
 
 def plot(job, align_after = True):
+    if 'svg' not in job: return 0
+    if 'speed' in job:
+        speed = max( min(job['speed'], 100), 50 ) / 100 # limit speed  (0.5, 1.0)
+    else 
+        speed = 1.0
+    
     ad = axidraw.AxiDraw()
     ad.plot_setup(job['svg'])
     ad.options.model = 2 # A3
     ad.options.reordering = 4 # no reordering
-    ad.options.speed_pendown = 110
-    ad.options.speed_penup = 110
-    ad.options.accel = 100
-    ad.options.pen_rate_lower = 100
-    ad.options.pen_rate_raise = 100
+    ad.options.speed_pendown = int(110 * speed)
+    ad.options.speed_penup = int(110 * speed)
+    ad.options.accel = int(100 * speed)
+    ad.options.pen_rate_lower = int(100 * speed)
+    ad.options.pen_rate_raise = int(100 * speed)
     ad.plot_run()
     if align_after: align()
     return ad.errors.code
