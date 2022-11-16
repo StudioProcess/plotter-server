@@ -92,6 +92,12 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     job['error_cb'] = error_cb
     job['received'] = timestamp()
     
+    # speed 
+    if 'speed' in job: job['speed'] = max( min(job['speed'], 100), 50 ) # limit speed  (50, 100)
+    else: job['speed'] = 100
+    # format
+    if 'format' not in job: job['format'] = 'A3_LANDSCAPE'
+    
     # add to jobs index
     jobs[ job['client'] ] = job
     await _notify_queue_size() # notify new queue size
@@ -131,10 +137,13 @@ async def finish_current_job():
 
 def job_str(job):
     info = '[' + str(job["client"])[0:8] + ']'
+    speed_and_format = f'{job["speed"]}%, {job["format"]}'
     if 'stats' in job:
         stats = job['stats']
         if 'count' in stats and 'travel' in stats and 'travel_ink' in stats:
-            info += f' ({stats["count"]} lines, {int(stats["travel_ink"])}/{int(stats["travel"])} mm)'
+            info += f' ({stats["count"]} lines, {int(stats["travel_ink"])}/{int(stats["travel"])} mm, {speed_and_format})'
+    else:
+        info += f' ({speed_and_format})'
     return info
 
 
@@ -165,13 +174,12 @@ def cycle():
 
 def plot(job, align_after = True):
     if 'svg' not in job: return 0
-    if 'speed' in job: speed = max( min(job['speed'], 100), 50 ) / 100 # limit speed  (0.5, 1.0)
-    else: speed = 1.0
-    
+    speed = job['speed'] / 100
     ad = axidraw.AxiDraw()
     ad.plot_setup(job['svg'])
     ad.options.model = 2 # A3
-    ad.options.reordering = 4 # no reordering
+    ad.options.reordering = 4 # No reordering
+    ad.options.auto_rotate = True # (This is the default) Drawings that are taller than wide will be rotated 90 deg to the left
     ad.options.speed_pendown = int(110 * speed)
     ad.options.speed_penup = int(110 * speed)
     ad.options.accel = int(100 * speed)
