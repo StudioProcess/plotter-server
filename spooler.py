@@ -165,10 +165,8 @@ def cycle():
 
 def plot(job, align_after = True):
     if 'svg' not in job: return 0
-    if 'speed' in job:
-        speed = max( min(job['speed'], 100), 50 ) / 100 # limit speed  (0.5, 1.0)
-    else 
-        speed = 1.0
+    if 'speed' in job: speed = max( min(job['speed'], 100), 50 ) / 100 # limit speed  (0.5, 1.0)
+    else: speed = 1.0
     
     ad = axidraw.AxiDraw()
     ad.plot_setup(job['svg'])
