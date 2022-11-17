@@ -2,7 +2,7 @@
 
 # Create self-signed certificate
 
-out="cert/localhost.pem"
+out="localhost.pem"
 domain="localhost"
 
 openssl req -x509 -out $out -keyout $out \

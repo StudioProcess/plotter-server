@@ -18,7 +18,8 @@ USE_ZEROCONF=1
 ZEROCONF_HOSTNAME='plotter-server'
 BIND_IP='0.0.0.0'
 PORT=4321
-SSL_CERT=None # None to disable SSL/TLS
+USE_SSL=1
+SSL_CERT='cert/localhost.pem'
 PING_INTERVAL=10
 PING_TIMEOUT=5
 
@@ -136,6 +137,7 @@ async def handle_connection(ws):
     print_status()
 
 def ssl_context():
+    if not USE_SSL: return None
     import ssl
     import os.path
     ssl_context = None
@@ -148,6 +150,7 @@ def ssl_context():
         print(f'Certificate not found, TLS disabled: {SSL_CERT}')
         ssl_context = None
     except:
+        print(f'Error establishing TLS context, TLS disabled: {SSL_CERT}')
         ssl_context = None
     return ssl_context
 
