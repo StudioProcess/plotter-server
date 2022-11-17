@@ -115,7 +115,8 @@ async def handle_connection(ws):
     global num_clients
     num_clients += 1
     clients.append(ws)
-    print(f'({num_clients}) Connected:    {ws.remote_address[0]}:{ws.remote_address[1]}')
+    remote_address = ws.remote_address # store remote address (might not be available on disconnect)
+    print(f'({num_clients}) Connected:    {remote_address[0]}:{remote_address[1]}')
     print_status()
     await send_current_queue_size(ws)
     try:
@@ -127,7 +128,7 @@ async def handle_connection(ws):
         pass
     num_clients -= 1
     clients.remove(ws)
-    print(f'({num_clients}) Disconnected: {ws.remote_address[0]}:{ws.remote_address[1]} ({ws.close_code}{(" " + ws.close_reason).rstrip()})')
+    print(f'({num_clients}) Disconnected: {remote_address[0]}:{remote_address[1]} ({ws.close_code}{(" " + ws.close_reason).rstrip()})')
     print_status()
 
 async def main():
