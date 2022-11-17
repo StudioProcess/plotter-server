@@ -4,6 +4,8 @@ import socket
 import zeroconf
 import asyncio
 import websockets
+import ssl
+import os.path
 import time
 import json
 import traceback
@@ -15,9 +17,9 @@ from tty_colors import COL
 
 
 USE_ZEROCONF=1
-ZEROCONF_HOSTNAME='plotter-server'
+ZEROCONF_HOSTNAME='plotter'
 BIND_IP='0.0.0.0'
-PORT=4321
+PORT=0 # Use 0 for default ports (80 for http, 443 for ssl/tls)
 USE_SSL=1
 SSL_CERT='cert/localhost.pem'
 PING_INTERVAL=10
@@ -27,6 +29,7 @@ prompt = None
 zc = None
 num_clients = 0
 clients = []
+ssl_context = None
 
 def status_str(status):
     match status['status']:
@@ -136,29 +139,27 @@ async def handle_connection(ws):
     print(f'({num_clients}) Disconnected: {remote_address[0]}:{remote_address[1]} ({ws.close_code}{(" " + ws.close_reason).rstrip()})')
     print_status()
 
-def ssl_context():
-    if not USE_SSL: return None
-    import ssl
-    import os.path
-    ssl_context = None
-    try:
-        pem_file = os.path.join( os.path.dirname(__file__), SSL_CERT )
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        ssl_context.load_cert_chain(pem_file)
-        print(f'TLS enabled with certificate: {SSL_CERT}')
-    except FileNotFoundError:
-        print(f'Certificate not found, TLS disabled: {SSL_CERT}')
-        ssl_context = None
-    except:
-        print(f'Error establishing TLS context, TLS disabled: {SSL_CERT}')
-        ssl_context = None
-    return ssl_context
+def setup_ssl():
+    if USE_SSL:
+        global ssl_context
+        try:
+            pem_file = os.path.join( os.path.dirname(__file__), SSL_CERT )
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_context.load_cert_chain(pem_file)
+            print(f'TLS enabled with certificate: {SSL_CERT}')
+        except FileNotFoundError:
+            print(f'Certificate not found, TLS disabled: {SSL_CERT}')
+            ssl_context = None
+        except:
+            print(f'Error establishing TLS context, TLS disabled: {SSL_CERT}')
+            ssl_context = None
+    global PORT
+    if PORT == 0: PORT = 80 if ssl_context == None else 443
 
 async def main():
     setup_prompt() # needs to be called within event loop
-    ssl = ssl_context()
-    async with websockets.serve(handle_connection, BIND_IP, PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT, ssl=ssl):
-        print(f'Server running on {"ws" if ssl == None else "wss"}://{BIND_IP}:{PORT}')
+    async with websockets.serve(handle_connection, BIND_IP, PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT, ssl=ssl_context):
+        print(f'Server running on {"ws" if ssl_context == None else "wss"}://{BIND_IP}:{PORT}')
         spooler.set_queue_size_cb(on_queue_size)
         # await asyncio.Future() # run forever
         await spooler.start(prompt, print_status) # run forever
@@ -170,6 +171,7 @@ def quit():
 
 if __name__ == '__main__':
     try:
+        setup_ssl()
         if USE_ZEROCONF: add_zeroconf_service()
         asyncio.run(main())
     except KeyboardInterrupt:
