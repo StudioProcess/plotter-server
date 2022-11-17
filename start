@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# start ngrok (in the background)
+# no trap needed, ngrok seems to get Control-C just like python
+./ngrok.sh noui > /dev/null &
+
+# run plotter-server
+python main.py
