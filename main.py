@@ -13,8 +13,12 @@ import spooler
 import async_prompt
 from tty_colors import COL
 
-HOSTNAME='plotter-server'
+
+USE_ZEROCONF=1
+ZEROCONF_HOSTNAME='plotter-server'
+BIND_IP='0.0.0.0'
 PORT=4321
+SSL_CERT=None # None to disable SSL/TLS
 PING_INTERVAL=10
 PING_TIMEOUT=5
 
@@ -58,17 +62,17 @@ def disable_sigint():
 def add_zeroconf_service():
     global zc
     print('Registering zeroconf service...')
-    lanip = socket.gethostbyname(socket.gethostname())
+    lanip = socket.gethostbyname(socket.gethostname()) # TODO: this sometimes returns 127.0.0.1 instaed of the lan ip
     service_info = zeroconf.ServiceInfo(
         "_ws._tcp.local.",
-        f'{HOSTNAME}._ws._tcp.local.',
+        f'{ZEROCONF_HOSTNAME}._ws._tcp.local.',
         addresses=[lanip],
         port=PORT,
-        server=f"{HOSTNAME}.local."
+        server=f"{ZEROCONF_HOSTNAME}.local."
     )
     zc = zeroconf.Zeroconf()
     zc.register_service(service_info)
-    print(f'Registered: {HOSTNAME}.local -> {lanip} (Port {PORT})')
+    print(f'Registered: {ZEROCONF_HOSTNAME}.local -> {lanip} (Port {PORT})')
 
 def remove_zeroconf_service():
     if zc != None: 
@@ -131,10 +135,27 @@ async def handle_connection(ws):
     print(f'({num_clients}) Disconnected: {remote_address[0]}:{remote_address[1]} ({ws.close_code}{(" " + ws.close_reason).rstrip()})')
     print_status()
 
+def ssl_context():
+    import ssl
+    import os.path
+    ssl_context = None
+    try:
+        pem_file = os.path.join( os.path.dirname(__file__), SSL_CERT )
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.load_cert_chain(pem_file)
+        print(f'TLS enabled with certificate: {SSL_CERT}')
+    except FileNotFoundError:
+        print(f'Certificate not found, TLS disabled: {SSL_CERT}')
+        ssl_context = None
+    except:
+        ssl_context = None
+    return ssl_context
+
 async def main():
     setup_prompt() # needs to be called within event loop
-    async with websockets.serve(handle_connection, "0.0.0.0", PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT):
-        print("Server running...")
+    ssl = ssl_context()
+    async with websockets.serve(handle_connection, BIND_IP, PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT, ssl=ssl):
+        print(f'Server running on {"ws" if ssl == None else "wss"}://{BIND_IP}:{PORT}')
         spooler.set_queue_size_cb(on_queue_size)
         # await asyncio.Future() # run forever
         await spooler.start(prompt, print_status) # run forever
@@ -142,11 +163,11 @@ async def main():
 def quit():
     print('Quitting...')
     remove_prompt()
-    remove_zeroconf_service()
+    if USE_ZEROCONF: remove_zeroconf_service()
 
 if __name__ == '__main__':
     try:
-        add_zeroconf_service()
+        if USE_ZEROCONF: add_zeroconf_service()
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
