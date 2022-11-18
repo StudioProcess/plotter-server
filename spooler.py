@@ -7,6 +7,8 @@ import os
 FOLDER_WAITING  ='svgs/0_waiting'
 FOLDER_CANCELED ='svgs/1_canceled'
 FOLDER_FINISHED ='svgs/2_finished'
+PEN_POS_UP = 60 # Default: 60
+PEN_POS_DOWN = 45 # Default: 40
 
 queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue 
@@ -161,6 +163,8 @@ def align():
     ad = axidraw.AxiDraw()
     ad.plot_setup()
     ad.options.mode = 'align' # A setup mode: Raise pen, disable XY stepper motors
+    ad.options.pen_pos_up = PEN_POS_UP
+    ad.options.pen_pos_down = PEN_POS_DOWN
     ad.plot_run()
     return ad.errors.code
 
@@ -169,6 +173,8 @@ def cycle():
     ad = axidraw.AxiDraw()
     ad.plot_setup()
     ad.options.mode = 'cycle' # A setup mode: Lower and then raise the pen
+    ad.options.pen_pos_up = PEN_POS_UP
+    ad.options.pen_pos_down = PEN_POS_DOWN
     ad.plot_run()
     return ad.errors.code
 
@@ -185,6 +191,8 @@ def plot(job, align_after = True):
     ad.options.accel = int(100 * speed)
     ad.options.pen_rate_lower = int(100 * speed)
     ad.options.pen_rate_raise = int(100 * speed)
+    ad.options.pen_pos_up = PEN_POS_UP
+    ad.options.pen_pos_down = PEN_POS_DOWN
     ad.plot_run()
     if align_after: align()
     return ad.errors.code
