@@ -21,7 +21,8 @@ ZEROCONF_HOSTNAME='plotter'
 BIND_IP='0.0.0.0'
 PORT=0 # Use 0 for default ports (80 for http, 443 for ssl/tls)
 USE_SSL=1
-SSL_CERT='cert/localhost.pem'
+# SSL_CERT='cert/localhost.pem'
+SSL_CERT='cert/process.studio.pem'
 PING_INTERVAL=10
 PING_TIMEOUT=5
 
@@ -63,10 +64,19 @@ def remove_prompt():
 def disable_sigint():
     signal.signal(signal.SIGINT, lambda *args: None) 
 
+def get_lanip():
+    ipaddrlist = socket.gethostbyname_ex(socket.gethostname())[2]
+    if len(ipaddrlist) == 0 or ipaddrlist[-1] == '127.0.0.1':
+        return None
+    return ipaddrlist[-1]
+
 def add_zeroconf_service():
     global zc
-    print('Registering zeroconf service...')
-    lanip = socket.gethostbyname(socket.gethostname()) # TODO: this sometimes returns 127.0.0.1 instaed of the lan ip
+    # print('Registering zeroconf service...')
+    lanip = get_lanip()
+    if lanip == None:
+        print('Zeroconf couldn\'t get local LAN IP')
+        return False
     service_info = zeroconf.ServiceInfo(
         "_ws._tcp.local.",
         f'{ZEROCONF_HOSTNAME}._ws._tcp.local.',
@@ -76,7 +86,7 @@ def add_zeroconf_service():
     )
     zc = zeroconf.Zeroconf()
     zc.register_service(service_info)
-    print(f'Registered: {ZEROCONF_HOSTNAME}.local -> {lanip} (Port {PORT})')
+    print(f'Zeroconf: Registered {ZEROCONF_HOSTNAME}.local -> {lanip} (Port {PORT})')
 
 def remove_zeroconf_service():
     if zc != None: 
