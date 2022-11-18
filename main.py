@@ -41,7 +41,7 @@ def status_str(status):
         case 'waiting':
             return(f'{COL.BOLD}Waiting for jobs{COL.OFF}')
         case 'confirm_plot':
-            return(f'{COL.BOLD}{COL.YELLOW}Confirm to plot [{status["job"]}]{COL.OFF}')
+            return(f'{COL.BOLD}{COL.YELLOW}Confirm to plot {status["job_str"]}{COL.OFF}')
         case 'plotting':
             return(f'{COL.BOLD}{COL.GREEN}Plotting [{status["job"]}]{COL.OFF}')
 

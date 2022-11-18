@@ -44,6 +44,7 @@ def status():
     return {
         'status': _status,
         'job': current_job['client'] if current_job != None else None,
+        'job_str': job_str(current_job) if current_job != None else None,
         'queue_size': queue_size(),
     }
 
