@@ -7,12 +7,6 @@ import os
 CONFIG_FILE = 'porkbun.config.json'
 FORCE_UPDATE_DNS = False
 
-
-ROOT_DOMAIN = 'process.tools'
-SUBDOMAIN = 'plotter'
-TTL = 600
-SSL_OUTFILE = 'cert/process.tools.pem'
-
 def get_lanip():
     import socket
     ipaddrlist = socket.gethostbyname_ex(socket.gethostname())[2]
@@ -45,7 +39,7 @@ def get_cert_bundle(domain):
 
 
 
-def ddns_update(root_domain = ROOT_DOMAIN, subdomain = SUBDOMAIN, ttl = TTL):
+def ddns_update(root_domain, subdomain, ttl):
     lanip = get_lanip()
     if not lanip:
         print('Couldn\'t get LAN IP')
@@ -70,7 +64,7 @@ def ddns_update(root_domain = ROOT_DOMAIN, subdomain = SUBDOMAIN, ttl = TTL):
     print(f'Updated DNS: {subdomain}.{root_domain} A={lanip} TTL={ttl}')
     return True
 
-def cert_update(root_domain = ROOT_DOMAIN, ssl_outfile = SSL_OUTFILE):
+def cert_update(root_domain, ssl_outfile):
     res = get_cert_bundle(root_domain)
     if res['status'] != 'SUCCESS':
         print(f'Couldn\'t retrieve SSL certficate for {root_domain}')
@@ -82,11 +76,3 @@ def cert_update(root_domain = ROOT_DOMAIN, ssl_outfile = SSL_OUTFILE):
         f.write(res['privatekey'])
     print(f'Updated certificate: {ssl_outfile}')
     return True
-
-
-
-if __name__ == '__main__':
-    pass
-    # get_records(ROOT_DOMAIN)
-    # ddns_update()
-    # cert_update()

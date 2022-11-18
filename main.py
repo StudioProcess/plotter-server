@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import zeroconf
 import asyncio
 import websockets
 import ssl
@@ -13,16 +12,17 @@ import signal
 import spooler
 import async_prompt
 from tty_colors import COL
+import zc
 import porkbun
 
 
-USE_ZEROCONF      = 1
+USE_ZEROCONF      = 0
 ZEROCONF_HOSTNAME = 'plotter'
 
-USE_PORKBUN = 1
+USE_PORKBUN         = 1
 PORKBUN_ROOT_DOMAIN = 'process.tools'
-PORKBUN_SUBDOMAIN = 'plotter'
-PORKBUN_TTL = 600
+PORKBUN_SUBDOMAIN   = 'plotter'
+PORKBUN_TTL         = 600
 PORKBUN_SSL_OUTFILE = 'cert/process.tools.pem'
 
 BIND_IP  = '0.0.0.0'
@@ -38,7 +38,6 @@ PING_TIMEOUT  = 5
 
 
 prompt = None
-zc = None
 num_clients = 0
 clients = []
 ssl_context = None
@@ -74,36 +73,6 @@ def remove_prompt():
 
 def disable_sigint():
     signal.signal(signal.SIGINT, lambda *args: None) 
-
-def get_lanip():
-    import socket
-    ipaddrlist = socket.gethostbyname_ex(socket.gethostname())[2]
-    if len(ipaddrlist) == 0 or ipaddrlist[-1] == '127.0.0.1':
-        return None
-    return ipaddrlist[-1]
-
-def add_zeroconf_service():
-    global zc
-    # print('Registering zeroconf service...')
-    lanip = get_lanip()
-    if lanip == None:
-        print('Zeroconf couldn\'t get local LAN IP')
-        return False
-    service_info = zeroconf.ServiceInfo(
-        "_ws._tcp.local.",
-        f'{ZEROCONF_HOSTNAME}._ws._tcp.local.',
-        addresses=[lanip],
-        port=PORT,
-        server=f"{ZEROCONF_HOSTNAME}.local."
-    )
-    zc = zeroconf.Zeroconf()
-    zc.register_service(service_info)
-    print(f'Zeroconf: Registered {ZEROCONF_HOSTNAME}.local -> {lanip} (Port {PORT})')
-
-def remove_zeroconf_service():
-    if zc != None: 
-        print('Unregistering zeroconf service...')
-        zc.unregister_all_services()
 
 async def send_msg(msg, ws):
     if type(msg) is dict: msg = json.dumps(msg)
@@ -191,7 +160,7 @@ async def main():
 def quit():
     print('Quitting...')
     remove_prompt()
-    if USE_ZEROCONF: remove_zeroconf_service()
+    if USE_ZEROCONF: zc.remove_zeroconf_service()
 
 if __name__ == '__main__':
     try:
@@ -199,8 +168,8 @@ if __name__ == '__main__':
             porkbun.ddns_update(PORKBUN_ROOT_DOMAIN, PORKBUN_SUBDOMAIN, PORKBUN_TTL)
             porkbun.cert_update(PORKBUN_ROOT_DOMAIN, PORKBUN_SSL_OUTFILE)
             print()
-        setup_ssl()
-        if USE_ZEROCONF: add_zeroconf_service()
+        setup_ssl() # Updates global PORT
+        if USE_ZEROCONF: zc.add_zeroconf_service(ZEROCONF_HOSTNAME, PORT)
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
