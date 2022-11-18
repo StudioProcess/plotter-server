@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 
+quit() {
+    # echo "start EOF"
+    kill $ngrok_pid 2> /dev/null
+    exit 0
+}
+trap quit EXIT
+
 # start ngrok (in the background)
-# no trap needed, ngrok seems to get Control-C just like python
 ./ngrok.sh noui > /dev/null &
+ngrok_pid=$!
+echo "Starting ngrok.sh..."
 
 # run plotter-server
 python main.py

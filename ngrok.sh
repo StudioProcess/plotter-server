@@ -1,5 +1,14 @@
+#!/usr/bin/env bash
+
 local_port=0 # use 0 for default ports (80 for http, 443 for https)
 hostname=plotter.eu.ngrok.io
+
+quit() {
+    >&2 echo 'Shutting down ngrok.sh...'
+    pkill -P $$ # kill all child processes
+    exit 0
+}
+trap quit EXIT
 
 if [[ $1 == 'http' ]]; then
     # connect to local HTTP server (NOT HTTPS)
