@@ -1,5 +1,6 @@
 websockets==10.3
 zeroconf==0.39.1
+requests==2.28.1
 
 # The following doesn't work because of private module axidrawinternal:
 #axicli @ git+https://github.com/evil-mad/axidraw@eeb37e4501191ee508240a182e16da27a0832110#subdirectory=cli

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import socket
 import zeroconf
 import asyncio
 import websockets
@@ -14,21 +13,29 @@ import signal
 import spooler
 import async_prompt
 from tty_colors import COL
+import porkbun
 
 
 USE_ZEROCONF      = 1
 ZEROCONF_HOSTNAME = 'plotter'
+
+USE_PORKBUN = 1
+PORKBUN_ROOT_DOMAIN = 'process.tools'
+PORKBUN_SUBDOMAIN = 'plotter'
+PORKBUN_TTL = 600
+PORKBUN_SSL_OUTFILE = 'cert/process.tools.pem'
 
 BIND_IP  = '0.0.0.0'
 PORT     = 0 # Use 0 for default ports (80 for http, 443 for ssl/tls)
 USE_SSL  = 1
 # SSL_CERT = 'cert/localhost.pem' # Certificate file in pem format (can contain private key as well)
 # SSL_KEY  = None # Private key file in pem format (If None, the key needs to be contained in SSL_CERT)
-SSL_CERT = 'cert/process.tools-ssl-bundle/domain.cert.pem'
-SSL_KEY  = 'cert/process.tools-ssl-bundle/private.key.pem'
+SSL_CERT = 'cert/process.tools.pem'
+SSL_KEY  = None
 
 PING_INTERVAL = 10
 PING_TIMEOUT  = 5
+
 
 prompt = None
 zc = None
@@ -69,6 +76,7 @@ def disable_sigint():
     signal.signal(signal.SIGINT, lambda *args: None) 
 
 def get_lanip():
+    import socket
     ipaddrlist = socket.gethostbyname_ex(socket.gethostname())[2]
     if len(ipaddrlist) == 0 or ipaddrlist[-1] == '127.0.0.1':
         return None
@@ -175,6 +183,7 @@ async def main():
     setup_prompt() # needs to be called within event loop
     async with websockets.serve(handle_connection, BIND_IP, PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT, ssl=ssl_context):
         print(f'Server running on {"ws" if ssl_context == None else "wss"}://{BIND_IP}:{PORT}')
+        print()
         spooler.set_queue_size_cb(on_queue_size)
         # await asyncio.Future() # run forever
         await spooler.start(prompt, print_status) # run forever
@@ -186,6 +195,10 @@ def quit():
 
 if __name__ == '__main__':
     try:
+        if USE_PORKBUN:
+            porkbun.ddns_update(PORKBUN_ROOT_DOMAIN, PORKBUN_SUBDOMAIN, PORKBUN_TTL)
+            porkbun.cert_update(PORKBUN_ROOT_DOMAIN, PORKBUN_SSL_OUTFILE)
+            print()
         setup_ssl()
         if USE_ZEROCONF: add_zeroconf_service()
         asyncio.run(main())
