@@ -22,8 +22,10 @@ ZEROCONF_HOSTNAME = 'plotter'
 BIND_IP  = '0.0.0.0'
 PORT     = 0 # Use 0 for default ports (80 for http, 443 for ssl/tls)
 USE_SSL  = 1
-SSL_CERT = 'cert/localhost.pem' # Certificate file in pem format (can contain private key as well)
-SSL_KEY  = None # Private key file in pem format (If None, the key needs to be contained in SSL_CERT)
+# SSL_CERT = 'cert/localhost.pem' # Certificate file in pem format (can contain private key as well)
+# SSL_KEY  = None # Private key file in pem format (If None, the key needs to be contained in SSL_CERT)
+SSL_CERT = 'cert/process.tools-ssl-bundle/domain.cert.pem'
+SSL_KEY  = 'cert/process.tools-ssl-bundle/private.key.pem'
 
 PING_INTERVAL = 10
 PING_TIMEOUT  = 5
@@ -161,10 +163,10 @@ def setup_ssl():
             ssl_context.load_cert_chain(cert_file, key_file)
             print(f'TLS enabled with certificate: {SSL_CERT}{"" if SSL_KEY == None else " + " + SSL_KEY}')
         except FileNotFoundError:
-            print(f'Certificate not found, TLS disabled: {SSL_CERT}')
+            print(f'Certificate not found, TLS disabled')
             ssl_context = None
         except:
-            print(f'Error establishing TLS context, TLS disabled: {SSL_CERT}')
+            print(f'Error establishing TLS context, TLS disabled')
             ssl_context = None
     global PORT
     if PORT == 0: PORT = 80 if ssl_context == None else 443
