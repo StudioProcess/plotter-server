@@ -84,7 +84,7 @@ def save_svg_async(*args):
 async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = None, error_cb = None):
     # the client might be in queue (or currently plotting)
     if job['client'] in jobs:
-        await callback( error_cb, 'cannot add job, you already have a job queued', job )
+        await callback( error_cb, 'Cannot add job, you already have a job queued!', job )
         return False
     
     job['cancel'] = False
@@ -113,7 +113,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
 async def cancel(client, force = False):
     if not force:
         if current_job != None and current_job['client'] == client:
-            await callback( current_job['error_cb'], 'cannot cancel, already plotting', current_job )
+            await callback( current_job['error_cb'], 'Cannot cancel, already plotting!', current_job )
             return False
     
     if client not in jobs: return False
