@@ -44,6 +44,8 @@ ssl_context = None
 
 def status_str(status):
     match status['status']:
+        case 'setup':
+            return(f'{COL.BOLD}{COL.BLUE}Setup{COL.OFF}')
         case 'waiting':
             return(f'{COL.BOLD}Waiting for jobs{COL.OFF}')
         case 'confirm_plot':

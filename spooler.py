@@ -14,7 +14,7 @@ queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue 
 jobs = {} # an index to all unfinished jobs by client id (in queue or current_job) (insertion order is preserved in dict since python 3.7)
 current_job = None
-_status = 'waiting' # waiting | confirm_plot | plotting
+_status = 'setup' # setup | waiting | confirm_plot | plotting
 
 async def callback(fn, *args):
     if callable(fn):
@@ -206,30 +206,48 @@ async def align_async():
 
 async def cycle_async():
     return await asyncio.to_thread(cycle)
+    
+
+# Options: (Return) Plot, (Delete) Cancel, (A)lign, (C)ycle
+async def prompt_start_plot(message, keys = [chr(13), chr(127), 'a', 'c']):
+    while True:
+        res = await prompt.wait_for( keys, message, echo=True )
+        if res == keys[0]: # Start Plot
+            return True
+        elif res == keys[2]: # Align
+            print('Aligning...')
+            await align_async() # -> prompt again
+        elif res == keys[3]: # Cycle
+            print('Cycling...')
+            await cycle_async() # -> prompt again
+        else: # Cancel
+            return False
+
+async def prompt_setup(message = 'Setup Plotter: (A)lign, (C)ycle, (Enter) Done ? ', keys = ['a', 'c', chr(13)]):
+    while True:
+        res = await prompt.wait_for( keys, message, echo=True )
+        if res == keys[0]: # Align
+            print('Aligning...')
+            await align_async() # -> prompt again
+        elif res == keys[1]: # Cycle
+            print('Cycling...')
+            await cycle_async() # -> prompt again
+        elif res == keys[2]: # Finish
+            return True
 
 
 
-async def start(prompt, print_status):
+async def start(_prompt, print_status):
     global current_job
     global _status
     global print
+    global prompt
+    prompt = _prompt # make this global
     print = prompt.print # replace global print function
     
-    async def prompt_start_plot(message, keys = [chr(13), 'c', 'a', 'o']):
-        while True:
-            res = await prompt.wait_for( keys, message, echo=True )
-            if res == keys[0]: # Start Plot
-                return True
-            elif res == keys[2]: # Align
-                print('Aligning...')
-                await align_async() # -> prompt again
-            elif res == keys[3]: # Cycle
-                print('Cycling...')
-                await cycle_async() # -> prompt again
-            else: # C .. Cancel
-                return False
-    
     await align_async()
+    await prompt_setup()
+    _status = 'waiting'
     
     while True:
         # get the next job from the queue, waits until a job becomes available
@@ -239,7 +257,7 @@ async def start(prompt, print_status):
         if not current_job['cancel']: # skip if job is canceled
             _status = 'confirm_plot'
             print_status()
-            ready = await prompt_start_plot(f'Ready to plot job {job_str(current_job)} (Return to start, C to cancel, A to align, O to cycle)? ')
+            ready = await prompt_start_plot(f'Ready to plot job {job_str(current_job)}? (Return) Start, (Delete) Cancel, (A)lign, (C)ycle ? ')
             if not ready:
                 await cancel(current_job['client'], force = True)
                 _status = 'waiting'
@@ -257,7 +275,7 @@ async def start(prompt, print_status):
                 else:
                     print(f'{COL.YELLOW if error in [102,103] else COL.RED}Plotter: {PLOTTER_ERRORS[error]}{COL.OFF}')
                     _status = 'confirm_plot'
-                    ready = await prompt_start_plot(f'Retry job {current_job["client"]} (Return to start, C to cancel, A to align, O to cycle ? ')
+                    ready = await prompt_start_plot(f'Retry job {current_job["client"]}? (Return) Start, (Delete) Cancel, (A)lign, (C)ycle ? ')
                     if not ready:
                         await cancel(current_job['client'], force = True)
                         break
