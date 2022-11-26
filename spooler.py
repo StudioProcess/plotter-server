@@ -10,6 +10,12 @@ FOLDER_FINISHED ='svgs/2_finished'
 PEN_POS_UP = 60 # Default: 60
 PEN_POS_DOWN = 45 # Default: 40
 
+KEY_SETUP_DONE = [ 'd', '(D)one' ]
+KEY_START_PLOT = [ 'p', '(P)lot' ]
+KEY_ALIGN = [ 'a', '(A)lign' ]
+KEY_CYCLE = [ 'c', '(C)ycle' ]
+KEY_CANCEL = [ chr(27), '(Esc) Cancel Job' ]
+
 queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue 
 jobs = {} # an index to all unfinished jobs by client id (in queue or current_job) (insertion order is preserved in dict since python 3.7)
@@ -208,31 +214,32 @@ async def cycle_async():
     return await asyncio.to_thread(cycle)
     
 
-# Options: (Return) Plot, (Delete) Cancel, (A)lign, (C)ycle
-async def prompt_start_plot(message, keys = [chr(13), chr(127), 'a', 'c']):
+async def prompt_start_plot(message):
+    message += f' {KEY_START_PLOT[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_CANCEL[1]} ?'
     while True:
-        res = await prompt.wait_for( keys, message, echo=True )
-        if res == keys[0]: # Start Plot
+        res = await prompt.wait_for( [KEY_START_PLOT[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_CANCEL[0]], message, echo=True )
+        if res == KEY_START_PLOT[0]: # Start Plot
             return True
-        elif res == keys[2]: # Align
+        elif res == KEY_ALIGN[0]: # Align
             print('Aligning...')
             await align_async() # -> prompt again
-        elif res == keys[3]: # Cycle
+        elif res == KEY_CYCLE[0]: # Cycle
             print('Cycling...')
             await cycle_async() # -> prompt again
-        else: # Cancel
+        elif res == KEY_CANCEL[0]: # Cancel
             return False
 
-async def prompt_setup(message = 'Setup Plotter: (A)lign, (C)ycle, (Enter) Done ? ', keys = ['a', 'c', chr(13)]):
+async def prompt_setup(message = 'Setup Plotter:'):
+    message += f' {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_SETUP_DONE[1]} ?'
     while True:
-        res = await prompt.wait_for( keys, message, echo=True )
-        if res == keys[0]: # Align
+        res = await prompt.wait_for( [KEY_ALIGN[0],KEY_CYCLE[0],KEY_SETUP_DONE[0]], message, echo=True )
+        if res == KEY_ALIGN[0]: # Align
             print('Aligning...')
             await align_async() # -> prompt again
-        elif res == keys[1]: # Cycle
+        elif res == KEY_CYCLE[0]: # Cycle
             print('Cycling...')
             await cycle_async() # -> prompt again
-        elif res == keys[2]: # Finish
+        elif res == KEY_SETUP_DONE[0] : # Finish
             return True
 
 
@@ -257,7 +264,7 @@ async def start(_prompt, print_status):
         if not current_job['cancel']: # skip if job is canceled
             _status = 'confirm_plot'
             print_status()
-            ready = await prompt_start_plot(f'Ready to plot job {job_str(current_job)}? (Return) Start, (Delete) Cancel, (A)lign, (C)ycle ? ')
+            ready = await prompt_start_plot(f'Ready to plot job {job_str(current_job)}?')
             if not ready:
                 await cancel(current_job['client'], force = True)
                 _status = 'waiting'
@@ -275,7 +282,7 @@ async def start(_prompt, print_status):
                 else:
                     print(f'{COL.YELLOW if error in [102,103] else COL.RED}Plotter: {PLOTTER_ERRORS[error]}{COL.OFF}')
                     _status = 'confirm_plot'
-                    ready = await prompt_start_plot(f'Retry job {current_job["client"]}? (Return) Start, (Delete) Cancel, (A)lign, (C)ycle ? ')
+                    ready = await prompt_start_plot(f'Retry job {current_job["client"]}?')
                     if not ready:
                         await cancel(current_job['client'], force = True)
                         break
