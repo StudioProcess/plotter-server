@@ -35,6 +35,7 @@ SSL_KEY  = None
 
 PING_INTERVAL = 10
 PING_TIMEOUT  = 5
+SHOW_CONNECTION_EVENTS = 0 # Print when clients connect/disconnect
 
 
 prompt = None
@@ -117,8 +118,9 @@ async def handle_connection(ws):
     num_clients += 1
     clients.append(ws)
     remote_address = ws.remote_address # store remote address (might not be available on disconnect)
-    print(f'({num_clients}) Connected:    {remote_address[0]}:{remote_address[1]}')
-    print_status()
+    if SHOW_CONNECTION_EVENTS:
+        print(f'({num_clients}) Connected:    {remote_address[0]}:{remote_address[1]}')
+        print_status()
     await send_current_queue_size(ws)
     try:
         # The iterator exits normally when the connection is closed with close code 1000 (OK) or 1001 (going away). It raises a ConnectionClosedError when the connection is closed with any other code.
@@ -129,8 +131,9 @@ async def handle_connection(ws):
         pass
     num_clients -= 1
     clients.remove(ws)
-    print(f'({num_clients}) Disconnected: {remote_address[0]}:{remote_address[1]} ({ws.close_code}{(" " + ws.close_reason).rstrip()})')
-    print_status()
+    if SHOW_CONNECTION_EVENTS:
+        print(f'({num_clients}) Disconnected: {remote_address[0]}:{remote_address[1]} ({ws.close_code}{(" " + ws.close_reason).rstrip()})')
+        print_status()
 
 def setup_ssl():
     if USE_SSL:
