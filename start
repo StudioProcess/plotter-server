@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Usage: ./start [nongrok|nogrok]
+
 quit() {
     # echo "start EOF"
     kill $ngrok_pid 2> /dev/null
@@ -7,10 +9,22 @@ quit() {
 }
 trap quit EXIT
 
-# start ngrok (in the background)
-./ngrok.sh noui > /dev/null &
-ngrok_pid=$!
-echo "Starting ngrok.sh..."
+start_ngrok=true
+if [[ -n $1 ]]; then # only if first arg is set
+    if [[ $1 == 'nongrok' || $1 == 'nogrok' ]]; then
+        start_ngrok=false
+    else
+        echo "Usage: $(basename $0) [nongrok|nogrok]"
+        exit 1
+    fi
+fi
+
+if $start_ngrok; then
+    # start ngrok (in the background)
+    echo "Starting ngrok.sh..."
+    ./ngrok.sh noui > /dev/null &
+    ngrok_pid=$!
+fi
 
 # run plotter-server
 python main.py
