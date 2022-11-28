@@ -9,7 +9,7 @@ FOLDER_CANCELED ='svgs/1_canceled'
 FOLDER_FINISHED ='svgs/2_finished'
 PEN_POS_UP = 60 # Default: 60
 PEN_POS_DOWN = 45 # Default: 40
-MIN_SPEED = 20 # percent
+MIN_SPEED = 10 # percent
 
 KEY_SETUP_DONE = [ 'd', '(D)one' ]
 KEY_START_PLOT = [ 'p', '(P)lot' ]
