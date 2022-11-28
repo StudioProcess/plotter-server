@@ -9,6 +9,7 @@ FOLDER_CANCELED ='svgs/1_canceled'
 FOLDER_FINISHED ='svgs/2_finished'
 PEN_POS_UP = 60 # Default: 60
 PEN_POS_DOWN = 45 # Default: 40
+MIN_SPEED = 20 # percent
 
 KEY_SETUP_DONE = [ 'd', '(D)one' ]
 KEY_START_PLOT = [ 'p', '(P)lot' ]
@@ -102,7 +103,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     job['received'] = timestamp()
     
     # speed 
-    if 'speed' in job: job['speed'] = max( min(job['speed'], 100), 50 ) # limit speed  (50, 100)
+    if 'speed' in job: job['speed'] = max( min(job['speed'], 100), MIN_SPEED ) # limit speed  (MIN_SPEED, 100)
     else: job['speed'] = 100
     # format
     if 'format' not in job: job['format'] = 'A3_LANDSCAPE'
