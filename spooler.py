@@ -66,7 +66,7 @@ def timestamp(date = None):
 def save_svg(job, status):
     if status not in ['waiting', 'canceled', 'finished']:
         return False
-    filename = f'{job["received"]}_{job["client"][0:8]}_{job["hash"][0:5]}.svg'
+    filename = f'{job["received"]}_{job["client"][0:10]}_{job["hash"][0:5]}.svg'
     files = {
         'waiting': os.path.join(FOLDER_WAITING, filename),
         'canceled': os.path.join(FOLDER_CANCELED, filename),
@@ -146,7 +146,7 @@ async def finish_current_job():
     return True
 
 def job_str(job):
-    info = '[' + str(job["client"])[0:8] + ']'
+    info = '[' + str(job["client"])[0:10] + ']'
     speed_and_format = f'{job["speed"]}%, {job["format"]}'
     if 'stats' in job:
         stats = job['stats']
