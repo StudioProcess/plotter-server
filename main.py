@@ -36,7 +36,7 @@ SSL_KEY  = None
 PING_INTERVAL = 10
 PING_TIMEOUT  = 5
 SHOW_CONNECTION_EVENTS = 0 # Print when clients connect/disconnect
-
+MAX_MESSAGE_SIZE_MB = 5 # in MB (Default in websockets lib is 2)
 
 prompt = None
 num_clients = 0
@@ -155,7 +155,7 @@ def setup_ssl():
 
 async def main():
     setup_prompt() # needs to be called within event loop
-    async with websockets.serve(handle_connection, BIND_IP, PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT, ssl=ssl_context):
+    async with websockets.serve(handle_connection, BIND_IP, PORT, ping_interval=PING_INTERVAL, ping_timeout=PING_TIMEOUT, ssl=ssl_context, max_size=MAX_MESSAGE_SIZE_MB*(2**20)):
         print(f'Server running on {"ws" if ssl_context == None else "wss"}://{BIND_IP}:{PORT}')
         print()
         spooler.set_queue_size_cb(on_queue_size)
