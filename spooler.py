@@ -298,7 +298,7 @@ async def start(_prompt, print_status):
                 _status = 'plotting'
                 await _notify_queue_positions() # notify plotting
                 error = await plot_async(current_job)
-                if error != 0: # no error
+                if error == 0: # no error
                     if REPEAT_JOBS:
                         print(f'{COL.BLUE}Done ({loop}x) job [{current_job["client"]}]{COL.OFF}')
                         _status = 'confirm_plot'
