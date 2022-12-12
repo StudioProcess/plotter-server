@@ -11,11 +11,15 @@ PEN_POS_UP = 60 # Default: 60
 PEN_POS_DOWN = 45 # Default: 40
 MIN_SPEED = 10 # percent
 
-KEY_SETUP_DONE = [ 'd', '(D)one' ]
+KEY_DONE = [ 'd', '(D)one' ]
+KEY_REPEAT = [ 'r', '(R)epeat' ]
 KEY_START_PLOT = [ 'p', '(P)lot' ]
 KEY_ALIGN = [ 'a', '(A)lign' ]
 KEY_CYCLE = [ 'c', '(C)ycle' ]
 KEY_CANCEL = [ chr(27), '(Esc) Cancel Job' ]
+
+REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
+
 
 queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue 
@@ -131,7 +135,7 @@ async def cancel(client, force = False):
     await callback( job['cancel_cb'], job ) # notify canceled job
     await _notify_queue_size() # notify new queue size
     await _notify_queue_positions() # notify queue positions (might have changed for some)
-    print(f'Canceled job {job["client"]}')
+    print(f'❌ {COL.RED}Canceled job [{job["client"]}]{COL.OFF}')
     await save_svg_async(job, 'canceled')
     return True
 
@@ -140,7 +144,7 @@ async def finish_current_job():
     del jobs[ current_job['client'] ] # remove from jobs index
     await _notify_queue_positions() # notify queue positions. current job is 0
     await _notify_queue_size() # notify queue size
-    print(f'Finished job {current_job["client"]}')
+    print(f'✅ {COL.GREEN}Finished job [{current_job["client"]}]{COL.OFF}')
     _status = 'waiting'
     await save_svg_async(current_job, 'finished')
     return True
@@ -230,17 +234,32 @@ async def prompt_start_plot(message):
         elif res == KEY_CANCEL[0]: # Cancel
             return False
 
-async def prompt_setup(message = 'Setup Plotter:'):
-    message += f' {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_SETUP_DONE[1]} ?'
+async def prompt_repeat_plot(message):
+    message += f' {KEY_REPEAT[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_DONE[1]} ?'
     while True:
-        res = await prompt.wait_for( [KEY_ALIGN[0],KEY_CYCLE[0],KEY_SETUP_DONE[0]], message, echo=True )
+        res = await prompt.wait_for( [KEY_REPEAT[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_DONE[0]], message, echo=True )
+        if res == KEY_REPEAT[0]: # Start Plot
+            return True
+        elif res == KEY_ALIGN[0]: # Align
+            print('Aligning...')
+            await align_async() # -> prompt again
+        elif res == KEY_CYCLE[0]: # Cycle
+            print('Cycling...')
+            await cycle_async() # -> prompt again
+        elif res == KEY_DONE[0]: # Finish
+            return False
+
+async def prompt_setup(message = 'Setup Plotter:'):
+    message += f' {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_DONE[1]} ?'
+    while True:
+        res = await prompt.wait_for( [KEY_ALIGN[0],KEY_CYCLE[0],KEY_DONE[0]], message, echo=True )
         if res == KEY_ALIGN[0]: # Align
             print('Aligning...')
             await align_async() # -> prompt again
         elif res == KEY_CYCLE[0]: # Cycle
             print('Cycling...')
             await cycle_async() # -> prompt again
-        elif res == KEY_SETUP_DONE[0] : # Finish
+        elif res == KEY_DONE[0] : # Finish
             return True
 
 
@@ -271,19 +290,27 @@ async def start(_prompt, print_status):
                 _status = 'waiting'
                 continue # skip over rest of the loop
             
-            # plot (and retry on error)
+            # plot (and retry on error or repeat)
+            loop = 0 # number or tries/repetitions
             while True:
-                print(f'Plotting job {current_job["client"]}...')
+                loop += 1
+                print(f'🖨️  {COL.YELLOW}Plotting job [{current_job["client"]}] ...{COL.OFF}')
                 _status = 'plotting'
                 await _notify_queue_positions() # notify plotting
                 error = await plot_async(current_job)
-                if error == 0:
+                if error != 0: # no error
+                    if REPEAT_JOBS:
+                        print(f'{COL.BLUE}Done ({loop}x) job [{current_job["client"]}]{COL.OFF}')
+                        _status = 'confirm_plot'
+                        repeat = await prompt_repeat_plot(f'{COL.BLUE}Repeat{COL.OFF} job [{current_job["client"]}] ?')
+                        if repeat: continue
                     await finish_current_job()
                     break
                 else:
-                    print(f'{COL.YELLOW if error in [102,103] else COL.RED}Plotter: {PLOTTER_ERRORS[error]}{COL.OFF}')
+                    col = COL.YELLOW if error in [102,103] else COL.RED
+                    print(f'{col}Plotter: {PLOTTER_ERRORS[error]}{COL.OFF}')
                     _status = 'confirm_plot'
-                    ready = await prompt_start_plot(f'Retry job {current_job["client"]}?')
+                    ready = await prompt_start_plot(f'{col}Retry{COL.OFF} job [{current_job["client"]}] ?')
                     if not ready:
                         await cancel(current_job['client'], force = True)
                         break
