@@ -116,8 +116,10 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     jobs[ job['client'] ] = job
     await _notify_queue_size() # notify new queue size
     await _notify_queue_positions()
+    print(f'New job [{job["client"]}]')
+    sim = await simulate_async(job) # run simulation
+    job['time_estimate'] = sim['time_estimate']
     await queue.put(job)
-    print(f'New job {job["client"]}')
     await save_svg_async(job, 'waiting')
     return True
 
@@ -151,7 +153,7 @@ async def finish_current_job():
 
 def job_str(job):
     info = '[' + str(job["client"])[0:10] + ']'
-    speed_and_format = f'{job["speed"]}%, {job["format"]}'
+    speed_and_format = f'{job["speed"]}%, {job["format"]}, {round(job["time_estimate"]/60)} min'
     if 'stats' in job:
         stats = job['stats']
         if 'count' in stats and 'travel' in stats and 'travel_ink' in stats:
@@ -209,8 +211,38 @@ def plot(job, align_after = True):
     if align_after: align()
     return ad.errors.code
 
+def simulate(job):
+    if 'svg' not in job: return 0
+    speed = job['speed'] / 100
+    ad = axidraw.AxiDraw()
+    ad.plot_setup(job['svg'])
+    ad.options.preview = True
+    ad.options.report_time = True
+    ad.options.model = 2 # A3
+    ad.options.reordering = 4 # No reordering
+    ad.options.auto_rotate = True # (This is the default) Drawings that are taller than wide will be rotated 90 deg to the left
+    ad.options.speed_pendown = int(110 * speed)
+    ad.options.speed_penup = int(110 * speed)
+    ad.options.accel = int(100 * speed)
+    ad.options.pen_rate_lower = int(100 * speed)
+    ad.options.pen_rate_raise = int(100 * speed)
+    ad.options.pen_pos_up = PEN_POS_UP
+    ad.options.pen_pos_down = PEN_POS_DOWN
+    ad.plot_run()
+    return {
+        'error_code': ad.errors.code,
+        'time_estimate': ad.time_estimate,
+        'distance_total': ad.distance_total,
+        'distance_pendown': ad.distance_pendown,
+        'pen_lifts': ad.pen_lifts
+    }
+
+
 async def plot_async(*args):
     return await asyncio.to_thread(plot, *args)
+
+async def simulate_async(*args):
+    return await asyncio.to_thread(simulate, *args)
 
 async def align_async():
     return await asyncio.to_thread(align)
