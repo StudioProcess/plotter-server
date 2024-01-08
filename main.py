@@ -21,7 +21,7 @@ ZEROCONF_HOSTNAME = 'plotter'
 
 USE_PORKBUN         = 1
 PORKBUN_ROOT_DOMAIN = 'process.tools'
-PORKBUN_SUBDOMAIN   = 'plotter'
+PORKBUN_SUBDOMAIN   = 'plotter-local'
 PORKBUN_TTL         = 600
 PORKBUN_SSL_OUTFILE = 'cert/process.tools.pem'
 

@@ -1,0 +1,16 @@
+serverAddr = "tunnel.process.tools"
+serverPort = 7000
+
+
+[[proxies]]
+name = "plotter"
+type = "https"
+localIP = "127.0.0.1"
+localPort = 443
+# Note: Remote https port is specified in frps.toml key "vhostHTTPSPort"
+
+# Suddomain with respect to frps.toml key "subDomainHost" ("process.tools")
+subdomain = "plotter"
+
+# Note: Should not belong to subDomainHost
+#customDomains = ["plotter.process.tools"]

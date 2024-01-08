@@ -5,18 +5,48 @@
 quit() {
     # echo "start EOF"
     kill $ngrok_pid 2> /dev/null
+    kill $frpc_pid 2> /dev/null
     exit 0
 }
 trap quit EXIT
 
-start_ngrok=true
-if [[ -n $1 ]]; then # only if first arg is set
-    if [[ $1 == 'nongrok' || $1 == 'nogrok' ]]; then
-        start_ngrok=false
-    else
-        echo "Usage: $(basename $0) [nongrok|nogrok]"
-        exit 1
-    fi
+usage() {
+    echo "Usage: $(basename $0) [-f <0|1>] [-n <0|1>]"
+    echo "       -f ... Start frpc"
+    echo "       -n ... Start ngrok"
+    exit 1
+}
+
+start_frpc=true
+start_ngrok=false
+
+while getopts ":f:n:h" opts; do
+    case "${opts}" in
+        f)
+            f=${OPTARG}
+            [[ $f -eq 0 || $f -eq 1 ]] || usage
+            [[ $f -eq 1 || -z $f ]] && start_frpc=true || start_frpc=false
+            ;;
+        n)
+            n=${OPTARG}
+            [[ $n -eq 0 || $n -eq 1 ]] || usage
+            [[ $n -eq 1 || -z $n ]] && start_ngrok=true || start_ngrok=false
+            ;;
+        h)
+            usage
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if $start_frpc; then
+    # start frpc (in the background)
+    echo "Starting frpc.sh..."
+    ./frpc.sh > /dev/null &
+    frpc_pid=$!
 fi
 
 if $start_ngrok; then
