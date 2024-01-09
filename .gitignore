@@ -7,3 +7,4 @@ svgs
 cert/process.tools-ssl-bundle
 cert/process.tools.pem
 porkbun.config.json
+frp.auth

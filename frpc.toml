@@ -1,6 +1,10 @@
+# tunnel.process.tools | plotter.process.tools | 195.201.249.119
 serverAddr = "tunnel.process.tools"
 serverPort = 7000
 
+# auth token
+#auth.token = "12345678"
+auth.token = "{{ .Envs.FRP_AUTH_TOKEN }}"
 
 [[proxies]]
 name = "plotter"

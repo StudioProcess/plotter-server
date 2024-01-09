@@ -7,5 +7,7 @@ quit() {
 }
 trap quit EXIT
 
-echo "Plotter URL (via frp): wss://plotter.process.studio:8000"
+>&2 echo "Plotter URL (via frp): wss://plotter.process.tools"
+source ./frp.auth # read auth token from file
+export FRP_AUTH_TOKEN
 frpc -c frpc.toml
