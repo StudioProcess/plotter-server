@@ -12,8 +12,8 @@ trap quit EXIT
 
 usage() {
     echo "Usage: $(basename $0) [-f <0|1>] [-n <0|1>]"
-    echo "       -f ... Start frpc"
-    echo "       -n ... Start ngrok"
+    echo "       -f ... Start frpc (Default 1)"
+    echo "       -n ... Start ngrok (Default 0)" 
     exit 1
 }
 
