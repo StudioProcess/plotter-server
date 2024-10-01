@@ -1,10 +1,16 @@
 websockets==10.3
 zeroconf==0.39.1
-requests==2.28.1
 
+# pyaxidraw module
+#
 # The following doesn't work because of private module axidrawinternal:
-#axicli @ git+https://github.com/evil-mad/axidraw@eeb37e4501191ee508240a182e16da27a0832110#subdirectory=cli
+# axicli @ git+https://github.com/evil-mad/axidraw/axidraw@1e157abca77a0b4397630b208f5b084ba2e0ae83#subdirectory=cli
+#
 # This is the official distribution including the axidrawinternal module (using link with exact version):
-https://cdn.evilmadscientist.com/dl/ad/public/ad_api/AxiDraw_API_372.zip
+https://cdn.evilmadscientist.com/dl/ad/public/ad_api/AxiDraw_API_396.zip
+#
 # Link to latest version:
-#https://cdn.evilmadscientist.com/dl/ad/public/AxiDraw_API.zip
+# https://cdn.evilmadscientist.com/dl/ad/public/AxiDraw_API.zip
+#
+# Docs:
+# https://axidraw.com/doc/cli_api/#introduction
