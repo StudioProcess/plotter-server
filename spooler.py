@@ -22,7 +22,7 @@ REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
 
 
 queue_size_cb = None
-queue = asyncio.Queue() # an async FIFO queue 
+queue = asyncio.Queue() # an async FIFO queue
 jobs = {} # an index to all unfinished jobs by client id (in queue or current_job) (insertion order is preserved in dict since python 3.7)
 current_job = None
 _status = 'setup' # setup | waiting | confirm_plot | plotting
@@ -60,7 +60,7 @@ def status():
     }
 
 def timestamp(date = None):
-    if date == None: 
+    if date == None:
         # make timezone aware timestamp: https://stackoverflow.com/a/39079819
         date = datetime.now(timezone.utc)
         date = date.replace(tzinfo=date.astimezone().tzinfo)
@@ -106,7 +106,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     job['error_cb'] = error_cb
     job['received'] = timestamp()
     
-    # speed 
+    # speed
     if 'speed' in job: job['speed'] = max( min(job['speed'], 100), MIN_SPEED ) # limit speed  (MIN_SPEED, 100)
     else: job['speed'] = 100
     # format
@@ -131,7 +131,7 @@ async def cancel(client, force = False):
     
     if client not in jobs: return False
     job = jobs[client]
-    job['cancel'] = True # set cancel flag 
+    job['cancel'] = True # set cancel flag
     del jobs[client] # remove from index
     
     await callback( job['cancel_cb'], job ) # notify canceled job
@@ -310,7 +310,7 @@ async def start(_prompt, print_status):
     
     while True:
         # get the next job from the queue, waits until a job becomes available
-        if queue.empty(): 
+        if queue.empty():
             print_status()
         current_job = await queue.get()
         if not current_job['cancel']: # skip if job is canceled

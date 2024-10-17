@@ -75,7 +75,7 @@ def remove_prompt():
     del prompt # force destructor, causes terminal to restore
 
 def disable_sigint():
-    signal.signal(signal.SIGINT, lambda *args: None) 
+    signal.signal(signal.SIGINT, lambda *args: None)
 
 async def send_msg(msg, ws):
     if type(msg) is dict: msg = json.dumps(msg)

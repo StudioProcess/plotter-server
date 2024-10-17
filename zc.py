@@ -28,6 +28,6 @@ def add_zeroconf_service(hostname, port):
     print(f'Zeroconf: Registered {hostname}.local -> {lanip} (Port {port})')
 
 def remove_zeroconf_service():
-    if zc != None: 
+    if zc != None:
         print('Unregistering zeroconf service...')
         zc.unregister_all_services()

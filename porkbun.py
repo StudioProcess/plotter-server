@@ -15,7 +15,7 @@ def get_lanip():
     return ipaddrlist[-1]
     
 def get_config():
-    with open(CONFIG_FILE) as f: 
+    with open(CONFIG_FILE) as f:
         api_config = json.load(f)
     return api_config
     

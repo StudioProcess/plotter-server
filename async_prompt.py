@@ -36,9 +36,9 @@ class AsyncPrompt:
             if ord(key) == 3: # catch Control-C
                 raise KeyboardInterrupt()
             if self.echo:
-                if ord(key) == 27: 
+                if ord(key) == 27:
                     print('^[', end=self.echo_end) # Don't echo ESC as it is, this would start an escape sequence in the terminal
-                else: 
+                else:
                     print(key, end=self.echo_end) # echo the input character (with newline)
             self.queue.put_nowait(key)
             self.waiting_for_input = False
