@@ -427,14 +427,14 @@ async def start(_prompt, print_status):
                     _status = 'confirm_plot'
                     ready = await prompt_resume_plot(f'{COL.YELLOW}Resume{COL.OFF} job [{current_job["client"]}] ?', current_job)
                     if not ready:
-                        await cancel(current_job['client'], force = True)
+                        await finish_current_job()
                         break
                     resume = True
                 # Errors
                 else:
                     print(f'{COL.RED}Plotter: {get_error_msg(error)}{COL.OFF}')
                     _status = 'confirm_plot'
-                    ready = await prompt_start_plot(f'{col}Retry{COL.OFF} job [{current_job["client"]}] ?')
+                    ready = await prompt_start_plot(f'{COL.RED}Retry{COL.OFF} job [{current_job["client"]}] ?')
                     if not ready:
                         await cancel(current_job['client'], force = True)
                         break
