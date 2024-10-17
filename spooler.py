@@ -4,6 +4,7 @@ from tty_colors import COL
 from datetime import datetime, timezone
 import math
 import os
+from capture_output import capture_output
 
 FOLDER_WAITING  ='svgs/0_waiting'
 FOLDER_CANCELED ='svgs/1_canceled'
@@ -184,46 +185,55 @@ def get_error_msg(code):
     else:
         return f'Unkown error (Code {code})'
 
+def print_axidraw(*args):
+    out = ' '.join(args)
+    lines = out.split('\n')
+    for line in lines:
+        print(f"{COL.GREY}[AxiDraw] " + line + COL.OFF)
+
 # Raise pen and disable XY stepper motors
 def align():
-    ad = axidraw.AxiDraw()
-    ad.plot_setup()
-    ad.options.mode = 'align' # A setup mode: Raise pen, disable XY stepper motors
-    ad.options.pen_pos_up = PEN_POS_UP
-    ad.options.pen_pos_down = PEN_POS_DOWN
-    if TESTING: ad.options.preview = True
-    ad.plot_run()
+    with capture_output(print_axidraw, print_axidraw):
+        ad = axidraw.AxiDraw()
+        ad.plot_setup()
+        ad.options.mode = 'align' # A setup mode: Raise pen, disable XY stepper motors
+        ad.options.pen_pos_up = PEN_POS_UP
+        ad.options.pen_pos_down = PEN_POS_DOWN
+        if TESTING: ad.options.preview = True
+        ad.plot_run()
     return ad.errors.code
 
 # Cycle the pen down and back up
 def cycle():
-    ad = axidraw.AxiDraw()
-    ad.plot_setup()
-    ad.options.mode = 'cycle' # A setup mode: Lower and then raise the pen
-    ad.options.pen_pos_up = PEN_POS_UP
-    ad.options.pen_pos_down = PEN_POS_DOWN
-    if TESTING: ad.options.preview = True
-    ad.plot_run()
+    with capture_output(print_axidraw, print_axidraw):
+        ad = axidraw.AxiDraw()
+        ad.plot_setup()
+        ad.options.mode = 'cycle' # A setup mode: Lower and then raise the pen
+        ad.options.pen_pos_up = PEN_POS_UP
+        ad.options.pen_pos_down = PEN_POS_DOWN
+        if TESTING: ad.options.preview = True
+        ad.plot_run()
     return ad.errors.code
 
 def plot(job, align_after = True, options_cb = None, return_ad = False):
     if 'svg' not in job: return 0
     speed = job['speed'] / 100
-    ad = axidraw.AxiDraw()
-    ad.plot_setup(job['svg'])
-    ad.options.model = 2 # A3
-    ad.options.reordering = 4 # No reordering
-    ad.options.auto_rotate = True # (This is the default) Drawings that are taller than wide will be rotated 90 deg to the left
-    ad.options.speed_pendown = int(110 * speed)
-    ad.options.speed_penup = int(110 * speed)
-    ad.options.accel = int(100 * speed)
-    ad.options.pen_rate_lower = int(100 * speed)
-    ad.options.pen_rate_raise = int(100 * speed)
-    ad.options.pen_pos_up = PEN_POS_UP
-    ad.options.pen_pos_down = PEN_POS_DOWN
-    if callable(options_cb): options_cb(ad.options)
-    if TESTING: ad.options.preview = True
-    job['output_svg'] = ad.plot_run(output=True)
+    with capture_output(print_axidraw, print_axidraw):
+        ad = axidraw.AxiDraw()
+        ad.plot_setup(job['svg'])
+        ad.options.model = 2 # A3
+        ad.options.reordering = 4 # No reordering
+        ad.options.auto_rotate = True # (This is the default) Drawings that are taller than wide will be rotated 90 deg to the left
+        ad.options.speed_pendown = int(110 * speed)
+        ad.options.speed_penup = int(110 * speed)
+        ad.options.accel = int(100 * speed)
+        ad.options.pen_rate_lower = int(100 * speed)
+        ad.options.pen_rate_raise = int(100 * speed)
+        ad.options.pen_pos_up = PEN_POS_UP
+        ad.options.pen_pos_down = PEN_POS_DOWN
+        if callable(options_cb): options_cb(ad.options)
+        if TESTING: ad.options.preview = True
+        job['output_svg'] = ad.plot_run(output=True)
     if align_after: align()
     if return_ad: return ad
     else: return ad.errors.code

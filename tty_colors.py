@@ -4,6 +4,7 @@ class COL:
     RED = '\033[91m'
     BLUE = '\033[94m'
     CYAN = '\033[96m'
+    GREY = '\033[90m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
     OFF = '\033[0m'
