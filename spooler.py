@@ -2,6 +2,7 @@ import asyncio
 from pyaxidraw import axidraw
 from tty_colors import COL
 from datetime import datetime, timezone
+import math
 import os
 
 FOLDER_WAITING  ='svgs/0_waiting'
@@ -17,9 +18,11 @@ KEY_START_PLOT = [ 'p', '(P)lot' ]
 KEY_ALIGN = [ 'a', '(A)lign' ]
 KEY_CYCLE = [ 'c', '(C)ycle' ]
 KEY_CANCEL = [ chr(27), '(Esc) Cancel Job' ]
+KEY_RESUME = [ 'r', '(R)esume' ]
+KEY_HOME = [ 'h', '(H)ome' ]
 
 REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
-
+TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
 
 queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue
@@ -153,7 +156,7 @@ async def finish_current_job():
 
 def job_str(job):
     info = '[' + str(job["client"])[0:10] + ']'
-    speed_and_format = f'{job["speed"]}%, {job["format"]}, {round(job["time_estimate"]/60)} min'
+    speed_and_format = f'{job["speed"]}%, {job["format"]}, {math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02} min'
     if 'stats' in job:
         stats = job['stats']
         if 'count' in stats and 'travel' in stats and 'travel_ink' in stats:
@@ -166,11 +169,18 @@ def job_str(job):
 # Return codes
 PLOTTER_ERRORS = {
     0: 'No error; operation nominal',
+    1: 'Paused programmatically',
     101: 'Failed to connect',
     102: 'Stopped by pause button press',
     103: 'Stopped by keyboard interrupt',
     104: 'Lost USB connectivity'
 }
+
+def get_error_msg(code):
+    if code in PLOTTER_ERRORS:
+        return PLOTTER_ERRORS[code]
+    else:
+        return f'Unkown error (Code {code})'
 
 # Raise pen and disable XY stepper motors
 def align():
@@ -179,6 +189,7 @@ def align():
     ad.options.mode = 'align' # A setup mode: Raise pen, disable XY stepper motors
     ad.options.pen_pos_up = PEN_POS_UP
     ad.options.pen_pos_down = PEN_POS_DOWN
+    if TESTING: ad.options.preview = True
     ad.plot_run()
     return ad.errors.code
 
@@ -189,10 +200,11 @@ def cycle():
     ad.options.mode = 'cycle' # A setup mode: Lower and then raise the pen
     ad.options.pen_pos_up = PEN_POS_UP
     ad.options.pen_pos_down = PEN_POS_DOWN
+    if TESTING: ad.options.preview = True
     ad.plot_run()
     return ad.errors.code
 
-def plot(job, align_after = True):
+def plot(job, align_after = True, options_cb = None, return_ad = False):
     if 'svg' not in job: return 0
     speed = job['speed'] / 100
     ad = axidraw.AxiDraw()
@@ -207,35 +219,71 @@ def plot(job, align_after = True):
     ad.options.pen_rate_raise = int(100 * speed)
     ad.options.pen_pos_up = PEN_POS_UP
     ad.options.pen_pos_down = PEN_POS_DOWN
-    ad.plot_run()
+    if callable(options_cb): options_cb(ad.options)
+    if TESTING: ad.options.preview = True
+    job['output_svg'] = ad.plot_run(output=True)
     if align_after: align()
-    return ad.errors.code
+    if return_ad: return ad
+    else: return ad.errors.code
+
+def resume_home(job, align_after = True, options_cb = None, return_ad = False):
+    if 'output_svg' not in job: return 0
+    orig_svg = job['svg'] # save original svg
+    job['svg'] = job['output_svg'] # set last output svg as input
+    
+    def _options_cb(options):
+        if callable(options_cb): options_cb(options)
+        options.mode = 'res_home'
+    
+    res = plot(job, align_after, _options_cb, return_ad)
+    job['svg'] = orig_svg # restore original svg
+    return res
+
+def resume_plot(job, align_after = True, options_cb = None, return_ad = False):
+    if 'output_svg' not in job: return 0
+    orig_svg = job['svg'] # save original svg
+    job['svg'] = job['output_svg'] # set last output svg as input
+    
+    def _options_cb(options):
+        if callable(options_cb): options_cb(options)
+        options.mode = 'res_plot'
+        
+    res = plot(job, align_after, _options_cb, return_ad)
+    job['svg'] = orig_svg # restore original svg
+    return res
 
 def simulate(job):
     if 'svg' not in job: return 0
     speed = job['speed'] / 100
-    ad = axidraw.AxiDraw()
-    ad.plot_setup(job['svg'])
-    ad.options.preview = True
-    ad.options.report_time = True
-    ad.options.model = 2 # A3
-    ad.options.reordering = 4 # No reordering
-    ad.options.auto_rotate = True # (This is the default) Drawings that are taller than wide will be rotated 90 deg to the left
-    ad.options.speed_pendown = int(110 * speed)
-    ad.options.speed_penup = int(110 * speed)
-    ad.options.accel = int(100 * speed)
-    ad.options.pen_rate_lower = int(100 * speed)
-    ad.options.pen_rate_raise = int(100 * speed)
-    ad.options.pen_pos_up = PEN_POS_UP
-    ad.options.pen_pos_down = PEN_POS_DOWN
-    ad.plot_run()
-    return {
-        'error_code': ad.errors.code,
-        'time_estimate': ad.time_estimate,
-        'distance_total': ad.distance_total,
-        'distance_pendown': ad.distance_pendown,
-        'pen_lifts': ad.pen_lifts
+    
+    stats = {
+        'error_code': None,
+        'time_estimate': 0,
+        'distance_total': 0,
+        'distance_pendown': 0,
+        'pen_lifts': 0,
+        'layers': 0
     }
+    
+    def update_stats(ad):
+        stats['error_code'] = ad.errors.code
+        stats['time_estimate'] += ad.time_estimate
+        stats['distance_total'] += ad.distance_total
+        stats['distance_pendown'] += ad.distance_pendown
+        stats['pen_lifts'] += ad.pen_lifts
+        stats['layers'] += 1
+    
+    def _options_cb(options):
+        options.preview = True
+    
+    ad = plot(job, align_after=False, options_cb=_options_cb, return_ad=True)
+    update_stats(ad)
+    
+    while ad.errors.code == 1: # Paused programmatically
+        ad = resume_plot(job, align_after=False, options_cb=_options_cb, return_ad=True)
+        update_stats(ad)
+    
+    return stats
 
 
 async def plot_async(*args):
@@ -249,7 +297,12 @@ async def align_async():
 
 async def cycle_async():
     return await asyncio.to_thread(cycle)
-    
+
+async def resume_plot_async(*args):
+    return await asyncio.to_thread(resume_plot, *args)
+
+async def resume_home_async(*args):
+    return await asyncio.to_thread(resume_home, *args)
 
 async def prompt_start_plot(message):
     message += f' {KEY_START_PLOT[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_CANCEL[1]} ?'
@@ -272,6 +325,24 @@ async def prompt_repeat_plot(message):
         res = await prompt.wait_for( [KEY_REPEAT[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_DONE[0]], message, echo=True )
         if res == KEY_REPEAT[0]: # Start Plot
             return True
+        elif res == KEY_ALIGN[0]: # Align
+            print('Aligning...')
+            await align_async() # -> prompt again
+        elif res == KEY_CYCLE[0]: # Cycle
+            print('Cycling...')
+            await cycle_async() # -> prompt again
+        elif res == KEY_DONE[0]: # Finish
+            return False
+
+async def prompt_resume_plot(message, job):
+    message += f' {KEY_RESUME[1]}, {KEY_HOME[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_DONE[1]} ?'
+    while True:
+        res = await prompt.wait_for( [KEY_RESUME[0],KEY_HOME[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_DONE[0]], message, echo=True )
+        if res == KEY_RESUME[0]: # Resume Plot
+            return True
+        elif res == KEY_HOME[0]: # Home
+            print('Returning home...')
+            await resume_home_async(job) # -> prompt again
         elif res == KEY_ALIGN[0]: # Align
             print('Aligning...')
             await align_async() # -> prompt again
@@ -304,6 +375,8 @@ async def start(_prompt, print_status):
     prompt = _prompt # make this global
     print = prompt.print # replace global print function
     
+    if TESTING: print(f'{COL.YELLOW}TESTING MODE enabled{COL.OFF}')
+    
     await align_async()
     await prompt_setup()
     _status = 'waiting'
@@ -324,13 +397,21 @@ async def start(_prompt, print_status):
             
             # plot (and retry on error or repeat)
             loop = 0 # number or tries/repetitions
+            resume = False # flag indicating resume (vs. plotting from start)
             while True:
-                loop += 1
-                print(f'🖨️  {COL.YELLOW}Plotting job [{current_job["client"]}] ...{COL.OFF}')
-                _status = 'plotting'
-                await _notify_queue_positions() # notify plotting
-                error = await plot_async(current_job)
-                if error == 0: # no error
+                if (resume):
+                    print(f'🖨️  {COL.YELLOW}Resuming job [{current_job["client"]}] ...{COL.OFF}')
+                    _status = 'plotting'
+                    error = await resume_plot_async(current_job)
+                else:
+                    loop += 1
+                    print(f'🖨️  {COL.YELLOW}Plotting job [{current_job["client"]}] ...{COL.OFF}')
+                    _status = 'plotting'
+                    await _notify_queue_positions() # notify plotting
+                    error = await plot_async(current_job)
+                resume = False
+                # No error
+                if error == 0:
                     if REPEAT_JOBS:
                         print(f'{COL.BLUE}Done ({loop}x) job [{current_job["client"]}]{COL.OFF}')
                         _status = 'confirm_plot'
@@ -338,9 +419,18 @@ async def start(_prompt, print_status):
                         if repeat: continue
                     await finish_current_job()
                     break
+                # Paused programmatically (1), Stopped by pause button press (102) or Stopped by keyboard interrupt (103)
+                elif error in [1, 102, 103]:
+                    print(f'{COL.YELLOW}Plotter: {get_error_msg(error)}{COL.OFF}')
+                    _status = 'confirm_plot'
+                    ready = await prompt_resume_plot(f'{COL.YELLOW}Resume{COL.OFF} job [{current_job["client"]}] ?', current_job)
+                    if not ready:
+                        await cancel(current_job['client'], force = True)
+                        break
+                    resume = True
+                # Errors
                 else:
-                    col = COL.YELLOW if error in [102,103] else COL.RED
-                    print(f'{col}Plotter: {PLOTTER_ERRORS[error]}{COL.OFF}')
+                    print(f'{COL.RED}Plotter: {get_error_msg(error)}{COL.OFF}')
                     _status = 'confirm_plot'
                     ready = await prompt_start_plot(f'{col}Retry{COL.OFF} job [{current_job["client"]}] ?')
                     if not ready:
