@@ -122,6 +122,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     print(f'New job [{job["client"]}]')
     sim = await simulate_async(job) # run simulation
     job['time_estimate'] = sim['time_estimate']
+    job['layers'] = sim['layers']
     await queue.put(job)
     await save_svg_async(job, 'waiting')
     return True
@@ -159,8 +160,9 @@ def job_str(job):
     speed_and_format = f'{job["speed"]}%, {job["format"]}, {math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02} min'
     if 'stats' in job:
         stats = job['stats']
+        layers = f'{job["layers"]} layers, ' if 'layers' in job and job['layers'] > 1 else ''
         if 'count' in stats and 'travel' in stats and 'travel_ink' in stats:
-            info += f' ({stats["count"]} lines, {int(stats["travel_ink"])}/{int(stats["travel"])} mm, {speed_and_format})'
+            info += f' ({stats["count"]} lines, {layers}{int(stats["travel_ink"])}/{int(stats["travel"])} mm, {speed_and_format})'
     else:
         info += f' ({speed_and_format})'
     return info
