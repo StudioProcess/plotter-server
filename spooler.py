@@ -10,12 +10,13 @@ FOLDER_WAITING  ='svgs/0_waiting'
 FOLDER_CANCELED ='svgs/1_canceled'
 FOLDER_FINISHED ='svgs/2_finished'
 PEN_POS_UP = 60 # Default: 60
-PEN_POS_DOWN = 45 # Default: 40
+PEN_POS_DOWN = 40 # Default: 40
 MIN_SPEED = 10 # percent
 
 KEY_DONE = [ 'd', '(D)one' ]
 KEY_REPEAT = [ 'r', '(R)epeat' ]
 KEY_START_PLOT = [ 'p', '(P)lot' ]
+KEY_RESTART_PLOT = [ 'p', '(P)lot from start' ]
 KEY_ALIGN = [ 'a', '(A)lign' ]
 KEY_CYCLE = [ 'c', '(C)ycle' ]
 KEY_CANCEL = [ chr(27), '(Esc) Cancel Job' ]
@@ -23,7 +24,7 @@ KEY_RESUME = [ 'r', '(R)esume' ]
 KEY_HOME = [ 'h', '(H)ome' ]
 
 REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
-TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
+TESTING = True # Don't actually connect to AxiDraw, just simulate plotting
 
 queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue
@@ -347,11 +348,13 @@ async def prompt_repeat_plot(message):
             return False
 
 async def prompt_resume_plot(message, job):
-    message += f' {KEY_RESUME[1]}, {KEY_HOME[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_DONE[1]} ?'
+    message += f' {KEY_RESUME[1]}, {KEY_HOME[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_RESTART_PLOT[1]}, {KEY_DONE[1]} ?'
     while True:
-        res = await prompt.wait_for( [KEY_RESUME[0],KEY_HOME[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_DONE[0]], message, echo=True )
+        res = await prompt.wait_for( [KEY_RESUME[0],KEY_HOME[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_RESTART_PLOT[0],KEY_DONE[0]], message, echo=True )
         if res == KEY_RESUME[0]: # Resume Plot
-            return True
+            return 'resume'
+        elif res == KEY_RESTART_PLOT[0]: # Restart plot
+            return 'restart'
         elif res == KEY_HOME[0]: # Home
             print('Returning home...')
             await resume_home_async(job) # -> prompt again
@@ -439,7 +442,7 @@ async def start(_prompt, print_status):
                     if not ready:
                         await finish_current_job()
                         break
-                    resume = True
+                    if ready == 'resume': resume = True
                 # Errors
                 else:
                     print(f'{COL.RED}Plotter: {get_error_msg(error)}{COL.OFF}')
