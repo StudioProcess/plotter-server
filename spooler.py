@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import math
 import os
 from capture_output import capture_output
+import re
+import hashlib
 
 FOLDER_WAITING  ='svgs/0_waiting'
 FOLDER_CANCELED ='svgs/1_canceled'
@@ -96,6 +98,21 @@ def save_svg(job, status):
 def save_svg_async(*args):
     return asyncio.to_thread(save_svg, *args)
 
+
+# Updated pre version 4 SVGs, so they are compatible with resume queue
+def update_svg(job):
+    match = re.search('tg:version="(\\d+)"', job['svg'])
+    if match != None and int(match.group(1)) >= 4: return
+    
+    MARKER = 'xmlns:tg="https://sketch.process.studio/turtle-graphics"'
+    idx = job['svg'].find(MARKER)
+    if idx == -1: return
+    idx += len(MARKER)
+    insert = f'\n     tg:version="4" tg:layer_count="1" tg:oob_count="{job['stats']['oob_count']}" tg:short_count="{job['stats']['short_count']}" tg:format="{job['format']}" tg:width_mm="{job['size'][0]}" tg:height_mm="{job['size'][1]}" tg:speed="{job['speed']}" tg:author="{job['client']}" tg:timestamp="{job['timestamp']}"'
+    
+    job['svg'] = job['svg'][:idx] + insert + job['svg'][idx:]
+    job['hash'] = hashlib.sha1(job['svg'].encode('utf-8')).hexdigest()
+
 # job {'type': 'plot, 'client', 'id', 'svg', stats, timestamp, hash, speed, format, size, received?}
 # adds to job: { 'cancel', time_estimate', 'layers', received }
 # todo: don't wait on callbacks
@@ -128,6 +145,8 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     sim = await simulate_async(job) # run simulation
     job['time_estimate'] = sim['time_estimate']
     job['layers'] = sim['layers']
+    
+    update_svg(job)
     await queue.put(job)
     await save_svg_async(job, 'waiting')
     return True
@@ -384,10 +403,7 @@ async def prompt_setup(message = 'Setup Plotter:'):
             return True
 
 async def resume_queue():
-    import os
     import xml.etree.ElementTree as ElementTree
-    import hashlib
-    import re
     list = os.listdir(FOLDER_WAITING)
     list = [ os.path.join(FOLDER_WAITING, x) for x in list if x.endswith('.svg') ]
     resumable_jobs = []
@@ -402,7 +418,7 @@ async def resume_queue():
             match = re.search('\\d{8}_\\d{6}.\\d{6}_UTC[+-]\\d{4}', os.path.basename(filename))
             received_ts = None if match == None else match.group(0)
             job = {
-                'resumed': True,
+                'loaded_from_file': True,
                 'client': attr('author'),
                 'id': "XYZ",
                 'svg': svg,
@@ -424,8 +440,7 @@ async def resume_queue():
             }
             resumable_jobs.append(job)
         except:
-            # print('Error loading ', filename)
-            pass
+            print('Error resuming ', filename)
     
     if len(resumable_jobs) > 0: print(f"Resuming {len(resumable_jobs)} jobs...")
     else: print("No jobs to resume")
@@ -503,6 +518,6 @@ async def start(_prompt, print_status):
                     if not ready:
                         await cancel(current_job['client'], force = True)
                         break
-
+                        
             _status = 'waiting'
         current_job = None
