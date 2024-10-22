@@ -24,7 +24,8 @@ KEY_RESUME = [ 'r', '(R)esume' ]
 KEY_HOME = [ 'h', '(H)ome' ]
 
 REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
-TESTING = True # Don't actually connect to AxiDraw, just simulate plotting
+TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
+RESUME_QUEUE = True # Resume plotting queue after quitting/restarting
 
 queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue
@@ -95,7 +96,8 @@ def save_svg(job, status):
 def save_svg_async(*args):
     return asyncio.to_thread(save_svg, *args)
 
-# job: 'client', 'lines'
+# job {'type': 'plot, 'client', 'id', 'svg', stats, timestamp, hash, speed, format, size, received?}
+# adds to job: { 'cancel', time_estimate', 'layers', received }
 # todo: don't wait on callbacks
 async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = None, error_cb = None):
     # the client might be in queue (or currently plotting)
@@ -109,7 +111,8 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     job['done_cb'] = done_cb
     job['cancel_cb'] = cancel_cb
     job['error_cb'] = error_cb
-    job['received'] = timestamp()
+    if 'received' not in job or job['received'] == None:
+        job['received'] = timestamp()
     
     # speed
     if 'speed' in job: job['speed'] = max( min(job['speed'], 100), MIN_SPEED ) # limit speed  (MIN_SPEED, 100)
@@ -121,7 +124,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     jobs[ job['client'] ] = job
     await _notify_queue_size() # notify new queue size
     await _notify_queue_positions()
-    print(f'New job [{job["client"]}]')
+    print(f'New job [{job["client"]}] {job["hash"][0:5]}')
     sim = await simulate_async(job) # run simulation
     job['time_estimate'] = sim['time_estimate']
     job['layers'] = sim['layers']
@@ -158,7 +161,7 @@ async def finish_current_job():
     return True
 
 def job_str(job):
-    info = '[' + str(job["client"])[0:10] + ']'
+    info = '[' + str(job["client"])[0:10] + '] ' + job['hash'][0:5]
     speed_and_format = f'{job["speed"]}%, {job["format"]}, {math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02} min'
     if 'stats' in job:
         stats = job['stats']
@@ -380,6 +383,54 @@ async def prompt_setup(message = 'Setup Plotter:'):
         elif res == KEY_DONE[0] : # Finish
             return True
 
+async def resume_queue():
+    import os
+    import xml.etree.ElementTree as ElementTree
+    import hashlib
+    import re
+    list = os.listdir(FOLDER_WAITING)
+    list = [ os.path.join(FOLDER_WAITING, x) for x in list if x.endswith('.svg') ]
+    resumable_jobs = []
+    for filename in list:
+        # print('Loading ', filename)
+        try:
+            with open(filename, 'r') as file:
+                svg = file.read()
+            root = ElementTree.fromstring(svg)
+            def attr(attr, ns = 'https://sketch.process.studio/turtle-graphics'):
+                return root.get(attr if ns == None else "{" + ns + "}" + attr)
+            match = re.search('\\d{8}_\\d{6}.\\d{6}_UTC[+-]\\d{4}', os.path.basename(filename))
+            received_ts = None if match == None else match.group(0)
+            job = {
+                'resumed': True,
+                'client': attr('author'),
+                'id': "XYZ",
+                'svg': svg,
+                'stats': {
+                    'count': int(attr('count')),
+                    'layer_count': int(attr('layer_count')),
+                    'oob_count': int(attr('oob_count')),
+                    'short_count': int(attr('short_count')),
+                    'travel': int(attr('travel')),
+                    'travel_ink': int(attr('travel_ink')),
+                    'travel_blank': int(attr('travel_blank'))
+                },
+                'timestamp': attr('timestamp'),
+                'speed': int(attr('speed')),
+                'format': attr('format'),
+                'size': [int(attr('width_mm')), int(attr('height_mm'))],
+                'hash': hashlib.sha1(svg.encode('utf-8')).hexdigest(),
+                'received': received_ts
+            }
+            resumable_jobs.append(job)
+        except:
+            # print('Error loading ', filename)
+            pass
+    
+    if len(resumable_jobs) > 0: print(f"Resuming {len(resumable_jobs)} jobs...")
+    else: print("No jobs to resume")
+    for job in resumable_jobs:
+        await enqueue(job)
 
 
 async def start(_prompt, print_status):
@@ -391,6 +442,7 @@ async def start(_prompt, print_status):
     print = prompt.print # replace global print function
     
     if TESTING: print(f'{COL.YELLOW}TESTING MODE enabled{COL.OFF}')
+    if RESUME_QUEUE: await resume_queue()
     
     await align_async()
     await prompt_setup()
