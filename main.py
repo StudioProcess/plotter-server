@@ -95,13 +95,13 @@ async def send_current_queue_size(ws):
 
 async def handle_message(message, ws):
     async def on_queue_position(pos, job):
-        await send_msg( {'type': 'queue_position', 'position': pos, 'id': job['id']}, ws )
+        await send_msg( {'type': 'queue_position', 'position': pos}, ws )
     async def on_done(job):
-        await send_msg( {'type': 'job_done', 'id': job['id']}, ws )
+        await send_msg( {'type': 'job_done'}, ws )
     async def on_cancel(job):
-        await send_msg( {'type': 'job_canceled', 'id': job['id']}, ws )
+        await send_msg( {'type': 'job_canceled'}, ws )
     async def on_error(msg, job):
-        await send_msg( {'type': 'error', 'msg': msg, 'id': job['id']}, ws )
+        await send_msg( {'type': 'error', 'msg': msg}, ws )
     msg = json.loads(message)
     if msg['type'] == 'echo':
         await ws.send(message)
