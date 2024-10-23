@@ -25,7 +25,7 @@ KEY_CANCEL = [ chr(27), '(Esc) Cancel Job' ]
 KEY_RESUME = [ 'r', '(R)esume' ]
 KEY_HOME = [ 'h', '(H)ome' ]
 
-TESTING = True # Don't actually connect to AxiDraw, just simulate plotting
+TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
 REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
 RESUME_QUEUE = True # Resume plotting queue after quitting/restarting
 ALIGN_AFTER = True # Align plotter after success or error
@@ -409,7 +409,7 @@ async def prompt_setup(message = 'Setup Plotter:'):
 
 async def resume_queue():
     import xml.etree.ElementTree as ElementTree
-    list = os.listdir(FOLDER_WAITING)
+    list = sorted(os.listdir(FOLDER_WAITING))
     list = [ os.path.join(FOLDER_WAITING, x) for x in list if x.endswith('.svg') ]
     resumable_jobs = []
     for filename in list:

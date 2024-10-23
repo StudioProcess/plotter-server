@@ -177,6 +177,7 @@ if __name__ == '__main__':
         if USE_ZEROCONF: zc.add_zeroconf_service(ZEROCONF_HOSTNAME, PORT)
         asyncio.run(main())
     except KeyboardInterrupt:
+        print('*** Ctrl-C pressed ***')
         pass
     except:
         traceback.print_exception( sys.exception() )
