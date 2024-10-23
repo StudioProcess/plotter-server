@@ -25,9 +25,11 @@ KEY_CANCEL = [ chr(27), '(Esc) Cancel Job' ]
 KEY_RESUME = [ 'r', '(R)esume' ]
 KEY_HOME = [ 'h', '(H)ome' ]
 
+TESTING = True # Don't actually connect to AxiDraw, just simulate plotting
 REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
-TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
 RESUME_QUEUE = True # Resume plotting queue after quitting/restarting
+ALIGN_AFTER = True # Align plotter after success or error
+ALIGN_AFTER_PAUSE = False # Align plotter after pause (programmatic, stop button, keyboard interrupt)
 
 queue_size_cb = None
 queue = asyncio.Queue() # an async FIFO queue
@@ -95,8 +97,8 @@ def save_svg(job, status):
                 pass
     return True
     
-def save_svg_async(*args):
-    return asyncio.to_thread(save_svg, *args)
+def save_svg_async(*args, **kwargs):
+    return asyncio.to_thread(save_svg, *args, **kwargs)
 
 
 # Updated pre version 4 SVGs, so they are compatible with resume queue
@@ -201,6 +203,7 @@ PLOTTER_ERRORS = {
     103: 'Stopped by keyboard interrupt',
     104: 'Lost USB connectivity'
 }
+PLOTTER_PAUSED = [ 1, 102, 103 ];
 
 def get_error_msg(code):
     if code in PLOTTER_ERRORS:
@@ -238,7 +241,7 @@ def cycle():
         ad.plot_run()
     return ad.errors.code
 
-def plot(job, align_after = True, options_cb = None, return_ad = False):
+def plot(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, options_cb = None, return_ad = False):
     if 'svg' not in job: return 0
     speed = job['speed'] / 100
     with capture_output(print_axidraw, print_axidraw):
@@ -257,11 +260,13 @@ def plot(job, align_after = True, options_cb = None, return_ad = False):
         if callable(options_cb): options_cb(ad.options)
         if TESTING: ad.options.preview = True
         job['output_svg'] = ad.plot_run(output=True)
-    if align_after: align()
+    if (ad.errors.code in PLOTTER_PAUSED and align_after_pause) or \
+       (ad.errors.code not in PLOTTER_PAUSED and align_after):
+        align()
     if return_ad: return ad
     else: return ad.errors.code
 
-def resume_home(job, align_after = True, options_cb = None, return_ad = False):
+def resume_home(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, options_cb = None, return_ad = False):
     if 'output_svg' not in job: return 0
     orig_svg = job['svg'] # save original svg
     job['svg'] = job['output_svg'] # set last output svg as input
@@ -270,11 +275,11 @@ def resume_home(job, align_after = True, options_cb = None, return_ad = False):
         if callable(options_cb): options_cb(options)
         options.mode = 'res_home'
     
-    res = plot(job, align_after, _options_cb, return_ad)
+    res = plot(job, align_after, align_after_pause, _options_cb, return_ad)
     job['svg'] = orig_svg # restore original svg
     return res
 
-def resume_plot(job, align_after = True, options_cb = None, return_ad = False):
+def resume_plot(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, options_cb = None, return_ad = False):
     if 'output_svg' not in job: return 0
     orig_svg = job['svg'] # save original svg
     job['svg'] = job['output_svg'] # set last output svg as input
@@ -282,8 +287,8 @@ def resume_plot(job, align_after = True, options_cb = None, return_ad = False):
     def _options_cb(options):
         if callable(options_cb): options_cb(options)
         options.mode = 'res_plot'
-        
-    res = plot(job, align_after, _options_cb, return_ad)
+    
+    res = plot(job, align_after, align_after_pause, _options_cb, return_ad)
     job['svg'] = orig_svg # restore original svg
     return res
 
@@ -311,21 +316,21 @@ def simulate(job):
     def _options_cb(options):
         options.preview = True
     
-    ad = plot(job, align_after=False, options_cb=_options_cb, return_ad=True)
+    ad = plot(job, align_after=False, align_after_pause=False, options_cb=_options_cb, return_ad=True)
     update_stats(ad)
     
     while ad.errors.code == 1: # Paused programmatically
-        ad = resume_plot(job, align_after=False, options_cb=_options_cb, return_ad=True)
+        ad = resume_plot(job, align_after=False, align_after_pause=False, options_cb=_options_cb, return_ad=True)
         update_stats(ad)
     
     return stats
 
 
-async def plot_async(*args):
-    return await asyncio.to_thread(plot, *args)
+async def plot_async(*args, **kwargs):
+    return await asyncio.to_thread(plot, *args, **kwargs)
 
-async def simulate_async(*args):
-    return await asyncio.to_thread(simulate, *args)
+async def simulate_async(*args, **kwargs):
+    return await asyncio.to_thread(simulate, *args, **kwargs)
 
 async def align_async():
     return await asyncio.to_thread(align)
@@ -333,11 +338,11 @@ async def align_async():
 async def cycle_async():
     return await asyncio.to_thread(cycle)
 
-async def resume_plot_async(*args):
-    return await asyncio.to_thread(resume_plot, *args)
+async def resume_plot_async(*args, **kwargs):
+    return await asyncio.to_thread(resume_plot, *args, **kwargs)
 
-async def resume_home_async(*args):
-    return await asyncio.to_thread(resume_home, *args)
+async def resume_home_async(*args, **kwargs):
+    return await asyncio.to_thread(resume_home, *args, **kwargs)
 
 async def prompt_start_plot(message):
     message += f' {KEY_START_PLOT[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_CANCEL[1]} ?'
@@ -502,7 +507,7 @@ async def start(_prompt, print_status):
                     await finish_current_job()
                     break
                 # Paused programmatically (1), Stopped by pause button press (102) or Stopped by keyboard interrupt (103)
-                elif error in [1, 102, 103]:
+                elif error in PLOTTER_PAUSED:
                     print(f'{COL.YELLOW}Plotter: {get_error_msg(error)}{COL.OFF}')
                     _status = 'confirm_plot'
                     ready = await prompt_resume_plot(f'{COL.YELLOW}Resume{COL.OFF} job [{current_job["client"]}] ?', current_job)
