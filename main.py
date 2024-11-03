@@ -184,7 +184,7 @@ class App(TextualApp):
                             yield (b_plus := HotkeyButton(label='+10', id='plus'))
                             yield (b_minus := HotkeyButton(label='-10', id='minus'))
                         with Vertical() as commands_4:
-                            yield (b_preview := HotkeyButton(label='Preview', id='preview'))
+                            yield (b_preview := HotkeyButton('v', 'Preview', label='Preview', id='preview'))
                         with Vertical() as commands_5:
                             yield (b_neg := HotkeyButton(label='Cancel', id='neg'))
                 yield queue
@@ -213,6 +213,7 @@ class App(TextualApp):
         job_progress.styles.margin = 1
         job_progress.styles.width = '100%'
         job_progress.query_one('#bar').styles.width = '1fr'
+        job_progress.styles.display = 'none'
         
         commands.styles.margin = (3, 0, 0, 0)
         
@@ -343,7 +344,7 @@ class App(TextualApp):
     
     @on(Key)
     async def on_queue_hotkey(self, event):
-        if event.key in ['backspace', 'i', 'k', '1', '0']:
+        if event.key in ['backspace', 'i', 'k', '1', '0', 'space']:
             if queue.row_count == 0: return # nothing in list
             client = queue.ordered_rows[queue.cursor_row].key.value
             
@@ -367,6 +368,8 @@ class App(TextualApp):
             elif (event.key == '0'):
                 await spooler.move(client, -1)
                 queue.move_cursor(row=queue.get_row_index(client))
+            elif (event.key == 'space'):
+                self.preview_job( spooler.job_by_client(client) )
     
     def job_to_row(self, job, idx):
         return (idx, job['client'], job['hash'][:5], job['stats']['count'], job['stats']['layer_count'], int(job['stats']['travel'])/1000, int(job['stats']['travel_ink'])/1000, job['format'], job['speed'], f'{math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02}')
@@ -437,7 +440,7 @@ class App(TextualApp):
                 b_pos.variant = 'success'
                 b_pos.disabled = False
                 
-                b_neg.update_hotkey('c', 'Cancel')
+                b_neg.update_hotkey('escape', 'Cancel')
                 b_neg.variant = 'error'
                 b_neg.disabled = False
                 

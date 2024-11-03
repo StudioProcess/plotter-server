@@ -90,6 +90,10 @@ def current_client():
     if _current_job == None: return None
     return _current_job['client']
 
+def job_by_client(client):
+    if client not in _jobs: return None
+    return _jobs[client]
+
 def jobs():
     lst = queue.list()
     if (_current_job != None and not _current_job['cancel']):
