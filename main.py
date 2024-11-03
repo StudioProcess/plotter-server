@@ -78,7 +78,7 @@ async def handle_connection(ws):
     remote_address = ws.remote_address # store remote address (might not be available on disconnect)
     if SHOW_CONNECTION_EVENTS:
         print(f'({num_clients}) Connected:    {remote_address[0]}:{remote_address[1]}')
-        print_status()
+    print_status()
     # await send_current_queue_size(ws)
     try:
         # The iterator exits normally when the connection is closed with close code 1000 (OK) or 1001 (going away). It raises a ConnectionClosedError when the connection is closed with any other code.
@@ -91,7 +91,7 @@ async def handle_connection(ws):
     clients.remove(ws)
     if SHOW_CONNECTION_EVENTS:
         print(f'({num_clients}) Disconnected: {remote_address[0]}:{remote_address[1]} ({ws.close_code}{(" " + ws.close_reason).rstrip()})')
-        print_status()
+    print_status()
 
 async def send_msg(msg, ws):
     if type(msg) is dict: msg = json.dumps(msg)
@@ -131,7 +131,7 @@ async def handle_message(message, ws):
     elif msg['type'] == 'plot':
         qsize = spooler.num_jobs()
         result = await spooler.enqueue(msg, on_queue_position, on_done, on_cancel, on_error)
-        if result and qsize > 0: print_status() # Don't print status if queue is empty -> Status will be printed by spooler
+        if result: print_status()
     elif msg['type'] == 'cancel':
         result = await spooler.cancel(msg['client'])
         if result: print_status()
@@ -339,7 +339,7 @@ class App(TextualApp):
                 'id': id, # use button id, hotkey description (lowercase), or button label (lowercase)
                 'button': event.button
             })
-            print('PROMPT result', id)
+            # print('PROMPT result', id)
     
     @on(Key)
     async def on_queue_hotkey(self, event):
@@ -379,6 +379,7 @@ class App(TextualApp):
     
     def update_job_queue(self):
         # remember selected client
+        client = None
         if queue.row_count > 0:
             client = queue.ordered_rows[queue.cursor_row].key.value
         
@@ -399,7 +400,7 @@ class App(TextualApp):
         
     # This not a coroutine (no async). It returns a future, which can be awaited from coroutines
     def prompt_ui(self, variant, message = ''):
-        print('PROMPT', variant)
+        # print('PROMPT', variant)
         
         if len(message) > 0: message = ' – ' + message
         job_status.update(spooler.status()['status_desc'] + message)

@@ -15,15 +15,15 @@ PEN_POS_UP = 60 # Default: 60
 PEN_POS_DOWN = 40 # Default: 40
 MIN_SPEED = 10 # percent
 
-KEY_DONE = ( 'd', '(D)one' )
-KEY_REPEAT = ( 'r', '(R)epeat' )
-KEY_START_PLOT = ( 'p', '(P)lot' )
-KEY_RESTART_PLOT = ( 'p', '(P)lot from start' )
-KEY_ALIGN = ( 'a', '(A)lign' )
-KEY_CYCLE = ( 'c', '(C)ycle' )
-KEY_CANCEL = ( chr(27), '(Esc) Cancel Job' )
-KEY_RESUME = ( 'r', '(R)esume' )
-KEY_HOME = ( 'h', '(H)ome' )
+# KEY_DONE = ( 'd', '(D)one' )
+# KEY_REPEAT = ( 'r', '(R)epeat' )
+# KEY_START_PLOT = ( 'p', '(P)lot' )
+# KEY_RESTART_PLOT = ( 'p', '(P)lot from start' )
+# KEY_ALIGN = ( 'a', '(A)lign' )
+# KEY_CYCLE = ( 'c', '(C)ycle' )
+# KEY_CANCEL = ( chr(27), '(Esc) Cancel Job' )
+# KEY_RESUME = ( 'r', '(R)esume' )
+# KEY_HOME = ( 'h', '(H)ome' )
 
 STATUS_DESC = {
     'setup': 'Setting up',
@@ -248,13 +248,13 @@ def job_pos(job):
 # last .. num_jobs()-1
 async def move(client, new_pos):
     global _current_job
-    print('move', client, new_pos)
+    # print('move', client, new_pos)
     job = _jobs[client]
     current_pos = job_pos(job)
-    print('current pos', current_pos)
+    # print('current pos', current_pos)
     # cannot move if job is already plotting
     if current_pos == -1:
-        print('already plotting, can\'t move')
+        # print('already plotting, can\'t move')
         return
     
     # normalize new_pos
@@ -266,33 +266,33 @@ async def move(client, new_pos):
     # can't take place of the plotting job
     if new_pos == 0 and _status == 'plotting': new_pos = 1
     
-    print(f'move from {current_pos} to {new_pos}')
+    # print(f'move from {current_pos} to {new_pos}')
     
     # clamp to upper bound
     if new_pos > num_jobs()-1: new_pos = num_jobs()-1
     
     # nothing to do
     if new_pos == current_pos:
-        print('nothing to do')
+        # print('nothing to do')
         return
     
     # move job from queue to current job
     if new_pos == 0:
-        print('move to top')
+        # print('move to top')
         queue.pop(current_pos-1) # remove from current position
         queue.insert(0, _current_job) # move current job (pos 0) to first waiting position
         _current_job = job # set to current job
         prompt_ui('start_plot', f'Ready to plot job \\[{_current_job["client"]}] ?')
     # move current job to queue
     elif current_pos == 0:
-        print('move from top')
+        # print('move from top')
         old_current_job = _current_job
         _current_job = queue.pop(0) # new current job is next in line
         queue.insert(new_pos-1, old_current_job)
         prompt_ui('start_plot', f'Ready to plot job \\[{_current_job["client"]}] ?')
     # move within queue
     else:
-        print('move within queue')
+        # print('move within queue')
         queue.move(current_pos-1, new_pos-1)
     
     await _notify_queue_size()
