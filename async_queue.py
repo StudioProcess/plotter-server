@@ -33,17 +33,21 @@ class Queue(asyncio.Queue):
         self.order[idx1], self.order[idx2] = self.order[idx2], self.order[idx1]
         self._rebuild()
     
-    # Not necessary (use swap):
-    
-    # def swap_to_front(self, idx):
-    #     if idx < -len(self.order) or idx > len(self.order)-1:
-    #         raise IndexError('index out of bounds')
-    #     self.swap(idx, 0)
-    #
-    # def swap_to_back(self, idx):
-    #     if idx < -len(self.order) or idx > len(self.order)-1:
-    #         raise IndexError('index out of bounds')
-    #     self.swap(idx, -1)
+    # move an item to new position in queue
+    def move(self, idx, new_idx):
+        if idx < -len(self.order) or idx > len(self.order)-1:
+            raise IndexError('index out of bounds')
+        if new_idx < -len(self.order) or new_idx > len(self.order)-1:
+            raise IndexError('target index out of bounds')
+        
+        # normalize negative indices
+        if idx < 0: idx = len(self.order) + idx
+        if new_idx < 0: new_idx = len(self.order) + new_idx
+        
+        if (idx == new_idx): return
+        item = self.order.pop(idx)
+        self.order.insert(new_idx, item)
+        self._rebuild()
     
     # remove an item from the queue; supports negative indices
     def pop(self, idx = -1):
@@ -224,6 +228,65 @@ if __name__ == '__main__':
             q.swap(1, -1)
             self.assertEqual(q.list(), ['zero', 'three', 'two', 'one'])
             self.assertEqual(self.get_all(q), ['zero', 'three', 'two', 'one'])
+        
+        async def test_move(self):
+            q = Queue()
+            q.put_nowait('zero')
+            q.put_nowait('one')
+            q.put_nowait('two')
+            q.put_nowait('three')
+            with self.assertRaises(IndexError): q.move(0, 4)
+            with self.assertRaises(IndexError): q.move(0, -5)
+            with self.assertRaises(IndexError): q.move(4, 0)
+            with self.assertRaises(IndexError): q.move(-5, 0)
+            q.move(1, 1)
+            self.assertEqual(q.list(), ['zero', 'one', 'two', 'three'])
+            self.assertEqual(self.get_all(q), ['zero', 'one', 'two', 'three'])
+            
+            # move top to bottom
+            q.put_nowait('zero')
+            q.put_nowait('one')
+            q.put_nowait('two')
+            q.put_nowait('three')
+            q.move(0, -1)
+            self.assertEqual(q.list(), ['one', 'two', 'three', 'zero'])
+            self.assertEqual(self.get_all(q), ['one', 'two', 'three', 'zero'])
+            
+            # move bottom to top
+            q.put_nowait('zero')
+            q.put_nowait('one')
+            q.put_nowait('two')
+            q.put_nowait('three')
+            q.move(-1, 0)
+            self.assertEqual(q.list(), ['three', 'zero', 'one', 'two'])
+            self.assertEqual(self.get_all(q), ['three', 'zero', 'one', 'two'])
+            
+            # swap items next to each other
+            q.put_nowait('zero')
+            q.put_nowait('one')
+            q.put_nowait('two')
+            q.put_nowait('three')
+            q.move(1, 2)
+            self.assertEqual(q.list(), ['zero', 'two', 'one', 'three'])
+            self.assertEqual(self.get_all(q), ['zero', 'two', 'one', 'three'])
+            
+            # move to bottom
+            q.put_nowait('zero')
+            q.put_nowait('one')
+            q.put_nowait('two')
+            q.put_nowait('three')
+            q.move(1, -1)
+            self.assertEqual(q.list(), ['zero', 'two', 'three', 'one'])
+            self.assertEqual(self.get_all(q), ['zero', 'two', 'three', 'one'])
+            
+            # move to top
+            q.put_nowait('zero')
+            q.put_nowait('one')
+            q.put_nowait('two')
+            q.put_nowait('three')
+            q.move(2, 0)
+            self.assertEqual(q.list(), ['two', 'zero', 'one', 'three'])
+            self.assertEqual(self.get_all(q), ['two', 'zero', 'one', 'three'])
         
     unittest.main()
     
