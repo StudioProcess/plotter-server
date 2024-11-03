@@ -339,18 +339,34 @@ class App(TextualApp):
                 'id': id, # use button id, hotkey description (lowercase), or button label (lowercase)
                 'button': event.button
             })
+            print('PROMPT result', id)
     
     @on(Key)
     async def on_queue_hotkey(self, event):
-        if (event.key == 'backspace'):
+        if event.key in ['backspace', 'i', 'k', '1', '0']:
             if queue.row_count == 0: return # nothing in list
             client = queue.ordered_rows[queue.cursor_row].key.value
-            # if this is the current job, and we haven't started, cancel the prompt to start
-            if spooler.current_client() == client and spooler.status()['status'] == 'confirm_plot':
-                self.cancel_prompt_ui()
-            # handle all other cases (even plots that are running)
-            else:
-                await spooler.cancel(client)
+            
+            if (event.key == 'backspace'):
+                # if this is the current job, and we haven't started, cancel the prompt to start
+                if spooler.current_client() == client and spooler.status()['status'] == 'confirm_plot':
+                    self.cancel_prompt_ui()
+                # handle all other cases (even plots that are running)
+                else:
+                    await spooler.cancel(client)
+            elif (event.key == 'i'):
+                await spooler.move(client, max(queue.cursor_row - 1, 0))
+                queue.move_cursor(row=queue.get_row_index(client))
+            elif (event.key == 'k'):
+                new_row = queue.cursor_row + 1
+                await spooler.move(client, new_row)
+                queue.move_cursor(row=queue.get_row_index(client))
+            elif (event.key == '1'):
+                await spooler.move(client, 0)
+                queue.move_cursor(row=queue.get_row_index(client))
+            elif (event.key == '0'):
+                await spooler.move(client, -1)
+                queue.move_cursor(row=queue.get_row_index(client))
     
     def job_to_row(self, job, idx):
         return (idx, job['client'], job['hash'][:5], job['stats']['count'], job['stats']['layer_count'], int(job['stats']['travel'])/1000, int(job['stats']['travel_ink'])/1000, job['format'], job['speed'], f'{math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02}')
@@ -371,7 +387,7 @@ class App(TextualApp):
             self.prompt_future.cancel()
         
     # This not a coroutine (no async). It returns a future, which can be awaited from coroutines
-    def prompt_ui(self, variant, message = '', ):
+    def prompt_ui(self, variant, message = ''):
         print('PROMPT', variant)
         
         if len(message) > 0: message = ' – ' + message
@@ -453,8 +469,10 @@ class App(TextualApp):
                 raise ValueError('Invalid variant')
         
         # return a future that eventually resolves to the result
-        loop = asyncio.get_running_loop()
-        self.prompt_future = loop.create_future()
+        # reuse the future if it isn't done. allows for updating the prompt
+        if self.prompt_future == None or self.prompt_future.done():
+            loop = asyncio.get_running_loop()
+            self.prompt_future = loop.create_future()
         return self.prompt_future
 
 

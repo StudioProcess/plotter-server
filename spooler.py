@@ -192,6 +192,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     return True
 
 async def cancel(client, force = False):
+    global _current_job
     if not force:
         if _current_job != None and _current_job['client'] == client:
             await callback( _current_job['error_cb'], 'Cannot cancel, already plotting!', _current_job )
@@ -200,7 +201,7 @@ async def cancel(client, force = False):
     # remove from job index
     if client not in _jobs: return False
     job = _jobs[client]
-    if job == _current_job and status == 'plotting': return # can't cancel if plotting
+    if job == _current_job and _status == 'plotting': return # can't cancel if plotting
     job['cancel'] = True # set cancel flag
     del _jobs[client]
     
@@ -208,6 +209,8 @@ async def cancel(client, force = False):
     # if job is the current job, it has already been taken from the top of the queue
     if job != _current_job:
         queue.pop( queue.index(job) )
+    
+    _current_job = None
     
     await callback( job['cancel_cb'], job ) # notify canceled job
     await _notify_queue_size() # notify new queue size
@@ -220,19 +223,22 @@ async def cancel_current_job(force = True):
     return await cancel(_current_job['client'], force = force)
 
 async def finish_current_job():
+    global _current_job
     await callback( _current_job['done_cb'], _current_job ) # notify job done
     del _jobs[ _current_job['client'] ] # remove from jobs index
+    finished_job = _current_job
+    _current_job = None
     await _notify_queue_positions() # notify queue positions. current job is 0
     await _notify_queue_size() # notify queue size
-    print(f'✅ [green]Finished job \\[{_current_job["client"]}]')
+    print(f'✅ [green]Finished job \\[{finished_job["client"]}]')
     _status = 'waiting'
-    await save_svg_async(_current_job, 'finished')
+    await save_svg_async(finished_job, 'finished')
     return True
 
 
 def job_pos(job):
     if (job == _current_job):
-        if status == 'plotting': return -1
+        if _status == 'plotting': return -1
         return 0
     return queue.index(job) + 1
 
@@ -241,11 +247,15 @@ def job_pos(job):
 # 1 .. first in queue (idx 0)
 # last .. num_jobs()-1
 async def move(client, new_pos):
+    global _current_job
+    print('move', client, new_pos)
     job = _jobs[client]
     current_pos = job_pos(job)
-    
+    print('current pos', current_pos)
     # cannot move if job is already plotting
-    if current_pos == -1: return
+    if current_pos == -1:
+        print('already plotting, can\'t move')
+        return
     
     # normalize new_pos
     if new_pos < 0: new_pos = num_jobs() + new_pos
@@ -254,27 +264,38 @@ async def move(client, new_pos):
     if new_pos < 0: new_pos = 0
     
     # can't take place of the plotting job
-    if new_pos == 0 and status == 'plotting': new_pos = 1
+    if new_pos == 0 and _status == 'plotting': new_pos = 1
+    
+    print(f'move from {current_pos} to {new_pos}')
     
     # clamp to upper bound
     if new_pos > num_jobs()-1: new_pos = num_jobs()-1
     
     # nothing to do
-    if new_pos == current_pos: return
+    if new_pos == current_pos:
+        print('nothing to do')
+        return
     
     # move job from queue to current job
     if new_pos == 0:
+        print('move to top')
         queue.pop(current_pos-1) # remove from current position
         queue.insert(0, _current_job) # move current job (pos 0) to first waiting position
         _current_job = job # set to current job
+        prompt_ui('start_plot', f'Ready to plot job \\[{_current_job["client"]}] ?')
     # move current job to queue
     elif current_pos == 0:
+        print('move from top')
+        old_current_job = _current_job
         _current_job = queue.pop(0) # new current job is next in line
-        queue.insert(new_pos-1, _job)
+        queue.insert(new_pos-1, old_current_job)
+        prompt_ui('start_plot', f'Ready to plot job \\[{_current_job["client"]}] ?')
     # move within queue
     else:
+        print('move within queue')
         queue.move(current_pos-1, new_pos-1)
     
+    await _notify_queue_size()
     await _notify_queue_positions() # notify queue positions (might have changed for some)
 
 def job_str(job):
@@ -598,12 +619,12 @@ async def start(app):
             while True:
                 if (resume):
                     print(f'🖨️  [yellow]Resuming job \\[{_current_job["client"]}] ...')
-                    _status = 'plotting'
+                    set_status('plotting')
                     error = await resume_plot_async(_current_job)
                 else:
                     loop += 1
                     print(f'🖨️  [yellow]Plotting job \\[{_current_job["client"]}] ...')
-                    _status = 'plotting'
+                    set_status('plotting')
                     await _notify_queue_positions() # notify plotting
                     error = await plot_async(_current_job)
                 resume = False
@@ -611,7 +632,7 @@ async def start(app):
                 if error == 0:
                     if REPEAT_JOBS:
                         print(f'[blue]Done ({loop}x) job \\[{_current_job["client"]}]')
-                        set_status('confirm_plot')
+                        set_status('plotting')
                         repeat = await prompt_repeat_plot(f'Repeat ({loop+1}) job \\[{_current_job["client"]}] ?')
                         if repeat: continue
                     await finish_current_job()
@@ -620,7 +641,7 @@ async def start(app):
                 elif error in PLOTTER_PAUSED:
                     print(f'[yellow]Plotter: {get_error_msg(error)}')
                     set_status('plotting')
-                    ready = await prompt_resume_plot(f'[yellow]Resume[/yellow] job \\[{_current_job["client"]}] ?', _current_job)
+                    ready = await prompt_resume_plot(f'[yellow]Continue[/yellow] job \\[{_current_job["client"]}] ?', _current_job)
                     if not ready:
                         await cancel_current_job()
                         break
@@ -634,5 +655,5 @@ async def start(app):
                         await cancel(_current_job['client'], force = True)
                         break
                         
-            _status = 'waiting'
+            set_status('waiting')
         _current_job = None
