@@ -49,6 +49,12 @@ class Queue(asyncio.Queue):
         self.order.insert(new_idx, item)
         self._rebuild()
     
+    def index(self, *args):
+        return self.order.index(*args)
+    
+    def __iter__(self):
+        return self.order.copy().__iter__()
+    
     # remove an item from the queue; supports negative indices
     def pop(self, idx = -1):
         if idx < -len(self.order) or idx > len(self.order)-1:
@@ -288,5 +294,26 @@ if __name__ == '__main__':
             self.assertEqual(q.list(), ['two', 'zero', 'one', 'three'])
             self.assertEqual(self.get_all(q), ['two', 'zero', 'one', 'three'])
         
+        async def test_index(self):
+            q = Queue()
+            q.put_nowait('zero')
+            q.put_nowait('one')
+            q.put_nowait('two')
+            q.put_nowait('three')
+            self.assertEqual(q.index('zero'), 0)
+            self.assertEqual(q.index('one'), 1)
+            self.assertEqual(q.index('two'), 2)
+            self.assertEqual(q.index('three'), 3)
+            with self.assertRaises(ValueError): q.index('none')
+            
+        async def test_iter(self):
+            q = Queue()
+            q.put_nowait('zero')
+            q.put_nowait('one')
+            q.put_nowait('two')
+            q.put_nowait('three')
+            items = [x for x in q]
+            self.assertEqual(items, ['zero', 'one', 'two', 'three'])
+            
     unittest.main()
     
