@@ -25,6 +25,7 @@ QUEUE_HEADERS = ['#', 'Client', 'Hash', 'Lines', 'Layers', 'Travel', 'Ink', 'For
 
 import textual
 from textual import on
+from textual.events import Key
 from textual.app import App as TextualApp
 from textual.widgets import Button, DataTable, RichLog, Footer, Header, Static, ProgressBar, Rule
 from textual.containers import Horizontal, Vertical
@@ -144,14 +145,13 @@ async def run_server(app):
         await spooler.start(app) # run forever
 
 
-
 class App(TextualApp):
     prompt_future = None
     
     def compose(self):
         global header, queue, log, footer
         header = Header(icon = '🖨️', show_clock = True, time_format = '%H:%M')
-        queue = DataTable()
+        queue = DataTable(id = 'queue')
         log = RichLog(markup=True)
         footer = Footer(id="footer", show_command_palette=True)
         
@@ -340,6 +340,18 @@ class App(TextualApp):
                 'button': event.button
             })
     
+    @on(Key)
+    async def on_queue_hotkey(self, event):
+        if (event.key == 'backspace'):
+            if queue.row_count == 0: return # nothing in list
+            client = queue.ordered_rows[queue.cursor_row].key.value
+            # if this is the current job, and we haven't started, cancel the prompt to start
+            if spooler.current_client() == client and spooler.status()['status'] == 'confirm_plot':
+                self.cancel_prompt_ui()
+            # handle all other cases (even plots that are running)
+            else:
+                await spooler.cancel(client)
+    
     def job_to_row(self, job, idx):
         return (idx, job['client'], job['hash'][:5], job['stats']['count'], job['stats']['layer_count'], int(job['stats']['travel'])/1000, int(job['stats']['travel_ink'])/1000, job['format'], job['speed'], f'{math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02}')
         
@@ -347,13 +359,17 @@ class App(TextualApp):
         job = spooler.current_job()
         job_current.clear()
         if job != None:
-            job_current.add_row( *self.job_to_row(job, 1) )
+            job_current.add_row( *self.job_to_row(job, 1), key=job['client'] )
     
     def update_job_queue(self):
         queue.clear()
         for idx, job in enumerate(spooler.jobs()):
-            queue.add_row( *self.job_to_row(job, idx+1) )
+            queue.add_row( *self.job_to_row(job, idx+1), key=job['client'] )
     
+    def cancel_prompt_ui(self):
+        if self.prompt_future != None and not self.prompt_future.done():
+            self.prompt_future.cancel()
+        
     # This not a coroutine (no async). It returns a future, which can be awaited from coroutines
     def prompt_ui(self, variant, message = '', ):
         print('PROMPT', variant)
