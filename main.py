@@ -22,12 +22,12 @@ MAX_MESSAGE_SIZE_MB = 5 # in MB (Default in websockets lib is 2)
 
 QUEUE_HEADERS = ['#', 'Client', 'Hash', 'Lines', 'Layers', 'Travel', 'Ink', 'Format', 'Speed', 'Duration']
 
-
 import textual
 from textual import on
 from textual.events import Key
 from textual.app import App as TextualApp
 from textual.widgets import Button, DataTable, RichLog, Footer, Header, Static, ProgressBar, Rule
+from textual.widgets.data_table import RowDoesNotExist
 from textual.containers import Horizontal, Vertical
 from hotkey_button import HotkeyButton
 
@@ -378,9 +378,20 @@ class App(TextualApp):
             job_current.add_row( *self.job_to_row(job, 1), key=job['client'] )
     
     def update_job_queue(self):
+        # remember selected client
+        if queue.row_count > 0:
+            client = queue.ordered_rows[queue.cursor_row].key.value
+        
         queue.clear()
         for idx, job in enumerate(spooler.jobs()):
             queue.add_row( *self.job_to_row(job, idx+1), key=job['client'] )
+        
+        # recall client
+        if client:
+            try:
+                queue.move_cursor(row=queue.get_row_index(client))
+            except RowDoesNotExist:
+                pass
     
     def cancel_prompt_ui(self):
         if self.prompt_future != None and not self.prompt_future.done():
