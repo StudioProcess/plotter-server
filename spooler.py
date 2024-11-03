@@ -207,10 +207,10 @@ async def cancel(client, force = False):
     
     # remove from queue
     # if job is the current job, it has already been taken from the top of the queue
-    if job != _current_job:
+    if job == _current_job:
+        _current_job = None
+    else:
         queue.pop( queue.index(job) )
-    
-    _current_job = None
     
     await callback( job['cancel_cb'], job ) # notify canceled job
     await _notify_queue_size() # notify new queue size
