@@ -1,12 +1,12 @@
 import asyncio
 from pyaxidraw import axidraw
+from tty_colors import COL
 from datetime import datetime, timezone
 import math
 import os
 from capture_output import capture_output
 import re
 import hashlib
-import async_queue
 
 FOLDER_WAITING  ='svgs/0_waiting'
 FOLDER_CANCELED ='svgs/1_canceled'
@@ -15,34 +15,26 @@ PEN_POS_UP = 60 # Default: 60
 PEN_POS_DOWN = 40 # Default: 40
 MIN_SPEED = 10 # percent
 
-KEY_DONE = ( 'd', '(D)one' )
-KEY_REPEAT = ( 'r', '(R)epeat' )
-KEY_START_PLOT = ( 'p', '(P)lot' )
-KEY_RESTART_PLOT = ( 'p', '(P)lot from start' )
-KEY_ALIGN = ( 'a', '(A)lign' )
-KEY_CYCLE = ( 'c', '(C)ycle' )
-KEY_CANCEL = ( chr(27), '(Esc) Cancel Job' )
-KEY_RESUME = ( 'r', '(R)esume' )
-KEY_HOME = ( 'h', '(H)ome' )
+KEY_DONE = [ 'd', '(D)one' ]
+KEY_REPEAT = [ 'r', '(R)epeat' ]
+KEY_START_PLOT = [ 'p', '(P)lot' ]
+KEY_RESTART_PLOT = [ 'p', '(P)lot from start' ]
+KEY_ALIGN = [ 'a', '(A)lign' ]
+KEY_CYCLE = [ 'c', '(C)ycle' ]
+KEY_CANCEL = [ chr(27), '(Esc) Cancel Job' ]
+KEY_RESUME = [ 'r', '(R)esume' ]
+KEY_HOME = [ 'h', '(H)ome' ]
 
-STATUS_DESC = {
-    'setup': 'Setting up',
-    'waiting': 'Waiting for jobs',
-    'confirm_plot': 'Confirm job',
-    'plotting': 'Plotting'
-}
-
-TESTING = True # Don't actually connect to AxiDraw, just simulate plotting
+TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
 REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
 RESUME_QUEUE = True # Resume plotting queue after quitting/restarting
 ALIGN_AFTER = True # Align plotter after success or error
 ALIGN_AFTER_PAUSE = False # Align plotter after pause (programmatic, stop button, keyboard interrupt)
 
 queue_size_cb = None
-# queue = asyncio.Queue() # an async FIFO queue
-queue = async_queue.Queue() # an async FIFO queue that can be reordered
-_jobs = {} # an index to all unfinished jobs by client id (in queue or current_job) (insertion order is preserved in dict since python 3.7)
-_current_job = None
+queue = asyncio.Queue() # an async FIFO queue
+jobs = {} # an index to all unfinished jobs by client id (in queue or current_job) (insertion order is preserved in dict since python 3.7)
+current_job = None
 _status = 'setup' # setup | waiting | confirm_plot | plotting
 
 async def callback(fn, *args):
@@ -51,8 +43,8 @@ async def callback(fn, *args):
 
 async def _notify_queue_positions():
     cbs = []
-    for i, client in enumerate(_jobs):
-        job = _jobs[client]
+    for i, client in enumerate(jobs):
+        job = jobs[client]
         if i == 0 and _status == 'plotting': i = -1
         if 'position_notified' not in job or job['position_notified'] != i:
             job['position_notified'] = i
@@ -60,33 +52,21 @@ async def _notify_queue_positions():
     await asyncio.gather(*cbs) # run callbacks concurrently
 
 async def _notify_queue_size():
-    await callback(queue_size_cb, len(_jobs))
+    await callback(queue_size_cb, len(jobs))
 
 def set_queue_size_cb(cb):
     global queue_size_cb
     queue_size_cb = cb
 
-def num_jobs():
-    return len(_jobs)
-
-def current_job():
-    return _current_job
-
-def jobs():
-    # return list(_jobs.values())
-    queued = queue.list()
-    if (_current_job != None and not _current_job['cancel']):
-        queued.insert(0, _current_job)
-    return queued
-    
+def queue_size():
+    return len(jobs)
 
 def status():
     return {
         'status': _status,
-        'status_desc': STATUS_DESC[_status],
-        'job': _current_job['client'] if _current_job != None else None,
-        'job_str': job_str(_current_job) if _current_job != None else None,
-        'queue_size': num_jobs(),
+        'job': current_job['client'] if current_job != None else None,
+        'job_str': job_str(current_job) if current_job != None else None,
+        'queue_size': queue_size(),
     }
 
 def timestamp(date = None):
@@ -110,7 +90,6 @@ def save_svg(job, status):
         if key == status:
             os.makedirs( os.path.dirname(file), exist_ok=True)
             with open(file, 'w', encoding='utf-8') as f: f.write(job['svg'])
-            job['save_path'] = file
         else:
             try:
                 os.remove(file)
@@ -141,7 +120,7 @@ def update_svg(job):
 # todo: don't wait on callbacks
 async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = None, error_cb = None):
     # the client might be in queue (or currently plotting)
-    if job['client'] in _jobs:
+    if job['client'] in jobs:
         await callback( error_cb, 'Cannot add job, you already have a job queued!', job )
         return False
     
@@ -161,8 +140,10 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     if 'format' not in job: job['format'] = 'A3_LANDSCAPE'
     
     # add to jobs index
-    _jobs[ job['client'] ] = job
-    print(f'New job \\[{job["client"]}] {job["hash"][0:5]}')
+    jobs[ job['client'] ] = job
+    await _notify_queue_size() # notify new queue size
+    await _notify_queue_positions()
+    print(f'New job [{job["client"]}] {job["hash"][0:5]}')
     sim = await simulate_async(job) # run simulation
     job['time_estimate'] = sim['time_estimate']
     job['layers'] = sim['layers']
@@ -170,43 +151,34 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     update_svg(job)
     await queue.put(job)
     await save_svg_async(job, 'waiting')
-    
-    await _notify_queue_size() # notify new queue size
-    await _notify_queue_positions()
     return True
 
 async def cancel(client, force = False):
     if not force:
-        if _current_job != None and _current_job['client'] == client:
-            await callback( _current_job['error_cb'], 'Cannot cancel, already plotting!', _current_job )
+        if current_job != None and current_job['client'] == client:
+            await callback( current_job['error_cb'], 'Cannot cancel, already plotting!', current_job )
             return False
     
-    if client not in _jobs: return False
-    job = _jobs[client]
+    if client not in jobs: return False
+    job = jobs[client]
     job['cancel'] = True # set cancel flag
-    del _jobs[client] # remove from index
-    
-    # TODO: if current job, its not in the queue anymore
+    del jobs[client] # remove from index
     
     await callback( job['cancel_cb'], job ) # notify canceled job
     await _notify_queue_size() # notify new queue size
     await _notify_queue_positions() # notify queue positions (might have changed for some)
-    print(f'❌ [red]Canceled job \\[{job["client"]}]')
+    print(f'❌ {COL.RED}Canceled job [{job["client"]}]{COL.OFF}')
     await save_svg_async(job, 'canceled')
     return True
 
-async def cancel_current_job(force = True):
-    print('call cancel job')
-    return await cancel(_current_job['client'], force = force)
-
 async def finish_current_job():
-    await callback( _current_job['done_cb'], _current_job ) # notify job done
-    del _jobs[ _current_job['client'] ] # remove from jobs index
+    await callback( current_job['done_cb'], current_job ) # notify job done
+    del jobs[ current_job['client'] ] # remove from jobs index
     await _notify_queue_positions() # notify queue positions. current job is 0
     await _notify_queue_size() # notify queue size
-    print(f'✅ [green]Finished job \\[{_current_job["client"]}]')
+    print(f'✅ {COL.GREEN}Finished job [{current_job["client"]}]{COL.OFF}')
     _status = 'waiting'
-    await save_svg_async(_current_job, 'finished')
+    await save_svg_async(current_job, 'finished')
     return True
 
 def job_str(job):
@@ -243,7 +215,7 @@ def print_axidraw(*args):
     out = ' '.join(args)
     lines = out.split('\n')
     for line in lines:
-        print(f"[gray50]\\[AxiDraw] " + line)
+        print(f"{COL.GREY}[AxiDraw] " + line + COL.OFF)
 
 # Raise pen and disable XY stepper motors
 def align():
@@ -372,67 +344,68 @@ async def resume_plot_async(*args, **kwargs):
 async def resume_home_async(*args, **kwargs):
     return await asyncio.to_thread(resume_home, *args, **kwargs)
 
-async def prompt_setup(message = 'Press \'Done\' when ready'):
-    while True:
-        res = await prompt_ui('setup', message)
-        res = res['id']
-        if res == 'align': # Align
-            print('Aligning...')
-            await align_async() # -> prompt again
-        elif res == 'cycle': # Cycle
-            print('Cycling...')
-            await cycle_async() # -> prompt again
-        elif res == 'neg' : # Finish
-            return True
-
 async def prompt_start_plot(message):
+    message += f' {KEY_START_PLOT[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_CANCEL[1]} ?'
     while True:
-        res = await prompt_ui('start_plot', message)
-        res = res['id']
-        if res == 'pos': # Start Plot
+        res = await prompt.wait_for( [KEY_START_PLOT[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_CANCEL[0]], message, echo=True )
+        if res == KEY_START_PLOT[0]: # Start Plot
             return True
-        elif res == 'align': # Align
+        elif res == KEY_ALIGN[0]: # Align
             print('Aligning...')
             await align_async() # -> prompt again
-        elif res == 'cycle': # Cycle
+        elif res == KEY_CYCLE[0]: # Cycle
             print('Cycling...')
             await cycle_async() # -> prompt again
-        elif res == 'neg': # Cancel
+        elif res == KEY_CANCEL[0]: # Cancel
             return False
 
 async def prompt_repeat_plot(message):
+    message += f' {KEY_REPEAT[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_DONE[1]} ?'
     while True:
-        res = await prompt_ui('repeat_plot', message)
-        res = res['id']
-        if res == 'pos': # Start Plot
+        res = await prompt.wait_for( [KEY_REPEAT[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_DONE[0]], message, echo=True )
+        if res == KEY_REPEAT[0]: # Start Plot
             return True
-        elif res == 'align': # Align
+        elif res == KEY_ALIGN[0]: # Align
             print('Aligning...')
             await align_async() # -> prompt again
-        elif res == 'cycle': # Cycle
+        elif res == KEY_CYCLE[0]: # Cycle
             print('Cycling...')
             await cycle_async() # -> prompt again
-        elif res == 'neg': # Done
+        elif res == KEY_DONE[0]: # Finish
             return False
 
 async def prompt_resume_plot(message, job):
+    message += f' {KEY_RESUME[1]}, {KEY_HOME[1]}, {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_RESTART_PLOT[1]}, {KEY_DONE[1]} ?'
     while True:
-        res = await prompt_ui('resume_plot', message)
-        res = res['id']
-        
-        if res == 'pos': # Resume Plot
-            return True
-        elif res == 'home': # Home
+        res = await prompt.wait_for( [KEY_RESUME[0],KEY_HOME[0],KEY_ALIGN[0],KEY_CYCLE[0],KEY_RESTART_PLOT[0],KEY_DONE[0]], message, echo=True )
+        if res == KEY_RESUME[0]: # Resume Plot
+            return 'resume'
+        elif res == KEY_RESTART_PLOT[0]: # Restart plot
+            return 'restart'
+        elif res == KEY_HOME[0]: # Home
             print('Returning home...')
             await resume_home_async(job) # -> prompt again
-        elif res == 'align': # Align
+        elif res == KEY_ALIGN[0]: # Align
             print('Aligning...')
             await align_async() # -> prompt again
-        elif res == 'cycle': # Cycle
+        elif res == KEY_CYCLE[0]: # Cycle
             print('Cycling...')
             await cycle_async() # -> prompt again
-        elif res == 'neg': # Done
+        elif res == KEY_DONE[0]: # Finish
             return False
+
+async def prompt_setup(message = 'Setup Plotter:'):
+    message += f' {KEY_ALIGN[1]}, {KEY_CYCLE[1]}, {KEY_DONE[1]} ?'
+    while True:
+        res = await prompt.wait_for( [KEY_ALIGN[0],KEY_CYCLE[0],KEY_DONE[0]], message, echo=True )
+        if res == KEY_ALIGN[0]: # Align
+            print('Aligning...')
+            await align_async() # -> prompt again
+        elif res == KEY_CYCLE[0]: # Cycle
+            print('Cycling...')
+            await cycle_async() # -> prompt again
+        elif res == KEY_DONE[0] : # Finish
+            return True
 
 async def resume_queue():
     import xml.etree.ElementTree as ElementTree
@@ -480,45 +453,33 @@ async def resume_queue():
         await enqueue(job)
 
 
-def set_status(status):
+async def start(_prompt, print_status):
+    global current_job
     global _status
-    _status = status
-    print_status()
-
-async def start(app):
-    global _current_job
-    global _status
-    
     global print
-    print = app.print
+    global prompt
+    prompt = _prompt # make this global
+    print = prompt.print # replace global print function
     
-    global prompt_ui
-    prompt_ui = app.prompt_ui
-    
-    global print_status
-    print_status = app.update_header
-    
-    if TESTING: print('[yellow]TESTING MODE enabled')
-    # if RESUME_QUEUE: await resume_queue()
-    
+    if TESTING: print(f'{COL.YELLOW}TESTING MODE enabled{COL.OFF}')
+    if RESUME_QUEUE: await resume_queue()
     
     await align_async()
     await prompt_setup()
+    _status = 'waiting'
     
     while True:
         # get the next job from the queue, waits until a job becomes available
         if queue.empty():
-            set_status('waiting')
-            prompt_ui('waiting')
-        _current_job = await queue.get()
-        
-        if not _current_job['cancel']: # skip if job is canceled
-            set_status('confirm_plot')
-            ready = await prompt_start_plot(f'Ready to plot job \\[{_current_job["client"]}] ?')
+            print_status()
+        current_job = await queue.get()
+        if not current_job['cancel']: # skip if job is canceled
+            _status = 'confirm_plot'
+            print_status()
+            ready = await prompt_start_plot(f'Ready to plot job {job_str(current_job)}?')
             if not ready:
-                await cancel_current_job()
-                set_status('waiting')
-                _current_job = None
+                await cancel(current_job['client'], force = True)
+                _status = 'waiting'
                 continue # skip over rest of the loop
             
             # plot (and retry on error or repeat)
@@ -526,42 +487,42 @@ async def start(app):
             resume = False # flag indicating resume (vs. plotting from start)
             while True:
                 if (resume):
-                    print(f'🖨️  [yellow]Resuming job \\[{_current_job["client"]}] ...')
+                    print(f'🖨️  {COL.YELLOW}Resuming job [{current_job["client"]}] ...{COL.OFF}')
                     _status = 'plotting'
-                    error = await resume_plot_async(_current_job)
+                    error = await resume_plot_async(current_job)
                 else:
                     loop += 1
-                    print(f'🖨️  [yellow]Plotting job \\[{_current_job["client"]}] ...')
+                    print(f'🖨️  {COL.YELLOW}Plotting job [{current_job["client"]}] ...{COL.OFF}')
                     _status = 'plotting'
                     await _notify_queue_positions() # notify plotting
-                    error = await plot_async(_current_job)
+                    error = await plot_async(current_job)
                 resume = False
                 # No error
                 if error == 0:
                     if REPEAT_JOBS:
-                        print(f'[blue]Done ({loop}x) job \\[{_current_job["client"]}]')
-                        set_status('confirm_plot')
-                        repeat = await prompt_repeat_plot(f'Repeat ({loop+1}) job \\[{_current_job["client"]}] ?')
+                        print(f'{COL.BLUE}Done ({loop}x) job [{current_job["client"]}]{COL.OFF}')
+                        _status = 'confirm_plot'
+                        repeat = await prompt_repeat_plot(f'{COL.BLUE}Repeat{COL.OFF} job [{current_job["client"]}] ?')
                         if repeat: continue
                     await finish_current_job()
                     break
                 # Paused programmatically (1), Stopped by pause button press (102) or Stopped by keyboard interrupt (103)
                 elif error in PLOTTER_PAUSED:
-                    print(f'[yellow]Plotter: {get_error_msg(error)}')
-                    set_status('plotting')
-                    ready = await prompt_resume_plot(f'[yellow]Resume[/yellow] job \\[{_current_job["client"]}] ?', _current_job)
+                    print(f'{COL.YELLOW}Plotter: {get_error_msg(error)}{COL.OFF}')
+                    _status = 'confirm_plot'
+                    ready = await prompt_resume_plot(f'{COL.YELLOW}Resume{COL.OFF} job [{current_job["client"]}] ?', current_job)
                     if not ready:
-                        await cancel_current_job()
+                        await finish_current_job()
                         break
-                    if ready: resume = True
+                    if ready == 'resume': resume = True
                 # Errors
                 else:
-                    print(f'[red]Plotter: {get_error_msg(error)}')
-                    set_status('confirm_plot')
-                    ready = await prompt_start_plot(f'[red]Retry job \\[{_current_job["client"]}] ?')
+                    print(f'{COL.RED}Plotter: {get_error_msg(error)}{COL.OFF}')
+                    _status = 'confirm_plot'
+                    ready = await prompt_start_plot(f'{COL.RED}Retry{COL.OFF} job [{current_job["client"]}] ?')
                     if not ready:
-                        await cancel(_current_job['client'], force = True)
+                        await cancel(current_job['client'], force = True)
                         break
                         
             _status = 'waiting'
-        _current_job = None
+        current_job = None
