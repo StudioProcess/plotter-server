@@ -256,6 +256,7 @@ class App(TextualApp):
             if not task.cancelled(): # not a intentional exit
                 ex = task.exception()
                 if ex != None:
+                    tprint('server task exception')
                     tprint(ex)
                     self.exit()
             
@@ -335,11 +336,11 @@ class App(TextualApp):
                 id = str(event.button.hotkey_description).lower()
             if id == None and event.button.label:
                 id = str(event.button.label).lower()
+            
             self.prompt_future.set_result({
                 'id': id, # use button id, hotkey description (lowercase), or button label (lowercase)
                 'button': event.button
             })
-            # print('PROMPT result', id)
     
     @on(Key)
     async def on_queue_hotkey(self, event):
@@ -398,7 +399,7 @@ class App(TextualApp):
     
     def cancel_prompt_ui(self):
         if self.prompt_future != None and not self.prompt_future.done():
-            self.prompt_future.cancel('cancel_prompt_ui')
+            self.prompt_future.set_result(False)
         
     # This not a coroutine (no async). It returns a future, which can be awaited from coroutines
     def prompt_ui(self, variant, message = ''):
@@ -423,13 +424,12 @@ class App(TextualApp):
                 b_plus.disabled = True
                 b_minus.disabled = True
                 b_preview.disabled = True
-
             case 'waiting':
                 b_pos.disabled = True
                 b_neg.disabled = True
                 
-                b_align.disabled = True
-                b_cycle.disabled = True
+                b_align.disabled = False
+                b_cycle.disabled = False
                 b_home.disabled = True
                 b_plus.disabled = True
                 b_minus.disabled = True

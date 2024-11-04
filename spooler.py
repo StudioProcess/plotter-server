@@ -46,7 +46,7 @@ queue_size_cb = None
 queue = async_queue.Queue() # an async FIFO queue that can be reordered
 _jobs = {} # an index to all unfinished jobs by client id (in queue or _current_job)
 _current_job = None
-_status = 'setup' # setup | waiting | confirm_plot | plotting
+_status = 'waiting' # waiting | confirm_plot | plotting
 
 
 # Helper function calls async function fn with args
@@ -479,15 +479,28 @@ async def prompt_setup(message = 'Press \'Done\' when ready'):
         elif res == 'neg' : # Finish
             return True
 
+async def prompt_waiting(message = 'Setup as needed'):
+    while True:
+        res = await prompt_ui('waiting', message)
+        if not res:
+            print('prompt cancelled')
+            return False # the prompt was intentionally cancelled
+        
+        res = res['id']
+        if res == 'align': # Align
+            print('Aligning...')
+            await align_async() # -> prompt again
+        elif res == 'cycle': # Cycle
+            print('Cycling...')
+            await cycle_async() # -> prompt again
+
+def cancel_prompt_waiting():
+    cancel_prompt_ui()
+
 async def prompt_start_plot(message):
     while True:
-        try:
-            res = await prompt_ui('start_plot', message)
-        except asyncio.CancelledError as e:
-            if len(e.args) > 0 and e.args[0] == 'cancel_prompt_ui':
-                return False # the prompt was intentionally cancelled -> Cancel plotting
-            # re-raise the exception in all other cases to not f-up asyncio
-            raise e
+        res = await prompt_ui('start_plot', message)
+        if not res: return False # the prompt was intentionally cancelled -> Cancel plotting
         
         res = res['id']
         if res == 'pos': # Start Plot
@@ -596,8 +609,9 @@ async def start(app):
     global tprint
     tprint = app.tprint
     
-    global prompt_ui
+    global prompt_ui, cancel_prompt_ui
     prompt_ui = app.prompt_ui
+    cancel_prompt_ui = app.cancel_prompt_ui
     
     global print_status
     print_status = app.update_header
@@ -606,14 +620,15 @@ async def start(app):
     if RESUME_QUEUE: await resume_queue()
     
     await align_async()
-    await prompt_setup()
+    # await prompt_setup()
     
     while True:
         # get the next job from the queue, waits until a job becomes available
         if queue.empty():
             set_status('waiting')
-            prompt_ui('waiting')
+            asyncio.create_task( prompt_waiting() ) # this allows align/cycle
         _current_job = await queue.get()
+        cancel_prompt_waiting()
         
         if not _current_job['cancel']: # skip if job is canceled
             set_status('confirm_plot')
