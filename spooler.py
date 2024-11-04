@@ -28,11 +28,12 @@ MIN_SPEED = 10 # percent
 STATUS_DESC = {
     'setup': 'Setting up',
     'waiting': 'Waiting for jobs',
+    'paused': 'Plot paused',
     'confirm_plot': 'Confirm job',
     'plotting': 'Plotting'
 }
 
-TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
+TESTING = True # Don't actually connect to AxiDraw, just simulate plotting
 REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
 RESUME_QUEUE = True # Resume plotting queue after quitting/restarting
 ALIGN_AFTER = True # Align plotter after success or error
@@ -616,7 +617,7 @@ async def start(app):
         
         if not _current_job['cancel']: # skip if job is canceled
             set_status('confirm_plot')
-            ready = await prompt_start_plot(f'Ready to plot job \\[{_current_job["client"]}] ?')
+            ready = await prompt_start_plot(f'[green]Ready to plot[/green] job \\[{_current_job["client"]}] ?')
             if not ready:
                 await cancel_current_job()
                 set_status('waiting')
@@ -642,16 +643,16 @@ async def start(app):
                 if error == 0:
                     if REPEAT_JOBS:
                         print(f'[blue]Done ({loop}x) job \\[{_current_job["client"]}]')
-                        set_status('plotting')
-                        repeat = await prompt_repeat_plot(f'Repeat ({loop+1}) job \\[{_current_job["client"]}] ?')
+                        set_status('confirm_plot')
+                        repeat = await prompt_repeat_plot(f'[yellow]Repeat[/yellow] ({loop+1}) job \\[{_current_job["client"]}] ?')
                         if repeat: continue
                     await finish_current_job()
                     break
                 # Paused programmatically (1), Stopped by pause button press (102) or Stopped by keyboard interrupt (103)
                 elif error in PLOTTER_PAUSED:
                     print(f'[yellow]Plotter: {get_error_msg(error)}')
-                    set_status('plotting')
-                    ready = await prompt_resume_plot(f'[yellow]Continue[/yellow] job \\[{_current_job["client"]}] ?', _current_job)
+                    set_status('paused')
+                    ready = await prompt_resume_plot(f'[blue]Continue[/blue] job \\[{_current_job["client"]}] ?', _current_job)
                     if not ready:
                         await cancel_current_job()
                         break
