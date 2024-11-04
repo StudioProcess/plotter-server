@@ -157,7 +157,7 @@ class App(TextualApp):
         
         global job_current, job_status,job_progress
         job_current = DataTable()
-        job_status = Static("Status: Waiting")
+        job_status = Static(spooler.status()['status_desc'])
         job_progress = ProgressBar()
         
         global col_left, col_right, job, commands, commands_1, commands_2, commands_3, commands_4, commands_5
@@ -244,6 +244,15 @@ class App(TextualApp):
         queue.cursor_type = 'row'
         
         self.update_header()
+        
+        b_pos.disabled = True
+        b_neg.disabled = True
+        b_align.disabled = True
+        b_cycle.disabled = True
+        b_home.disabled = True
+        b_plus.disabled = True
+        b_minus.disabled = True
+        b_preview.disabled = True
         
         setup_ssl()
         # log.write(log.styles.height)
