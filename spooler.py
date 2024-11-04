@@ -32,7 +32,7 @@ STATUS_DESC = {
     'plotting': 'Plotting'
 }
 
-TESTING = True # Don't actually connect to AxiDraw, just simulate plotting
+TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
 REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
 RESUME_QUEUE = True # Resume plotting queue after quitting/restarting
 ALIGN_AFTER = True # Align plotter after success or error

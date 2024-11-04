@@ -1,7 +1,7 @@
 USE_ZEROCONF      = 0
 ZEROCONF_HOSTNAME = 'plotter'
 
-USE_PORKBUN         = 0
+USE_PORKBUN         = 1
 PORKBUN_ROOT_DOMAIN = 'process.tools'
 PORKBUN_SUBDOMAIN   = 'plotter-local'
 PORKBUN_TTL         = 600
@@ -17,7 +17,7 @@ SSL_KEY  = None
 
 PING_INTERVAL = 10
 PING_TIMEOUT  = 5
-SHOW_CONNECTION_EVENTS = 1 # Print when clients connect/disconnect
+SHOW_CONNECTION_EVENTS = 0 # Print when clients connect/disconnect
 MAX_MESSAGE_SIZE_MB = 5 # in MB (Default in websockets lib is 2)
 
 QUEUE_HEADERS = ['#', 'Client', 'Hash', 'Lines', 'Layers', 'Travel', 'Ink', 'Format', 'Speed', 'Duration']
