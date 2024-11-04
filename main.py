@@ -252,13 +252,12 @@ class App(TextualApp):
         server_task = asyncio.create_task(run_server(self))
         
         def on_server_task_exit(task):
-            print('[red]SERVER TASK EXIT')
-            if not task.cancelled():
+            tprint('server task exit')
+            if not task.cancelled(): # not a intentional exit
                 ex = task.exception()
                 if ex != None:
-                    print(ex)
-                    raise ex
-                    self.quit()
+                    tprint(ex)
+                    self.exit()
             
         server_task.add_done_callback(on_server_task_exit)
         
@@ -399,7 +398,7 @@ class App(TextualApp):
     
     def cancel_prompt_ui(self):
         if self.prompt_future != None and not self.prompt_future.done():
-            self.prompt_future.cancel()
+            self.prompt_future.cancel('cancel_prompt_ui')
         
     # This not a coroutine (no async). It returns a future, which can be awaited from coroutines
     def prompt_ui(self, variant, message = ''):
@@ -481,7 +480,7 @@ class App(TextualApp):
                 b_minus.disabled = True
                 b_preview.disabled = False
             case _:
-                raise ValueError('Invalid variant')
+                raise ValueError('Invalid prompt variant')
         
         # return a future that eventually resolves to the result
         # reuse the future if it isn't done. allows for updating the prompt
@@ -506,5 +505,6 @@ if __name__ == "__main__":
     
     app = App()
     print = app.print
+    app.tprint = tprint
     
     app.run()

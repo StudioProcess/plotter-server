@@ -482,8 +482,11 @@ async def prompt_start_plot(message):
     while True:
         try:
             res = await prompt_ui('start_plot', message)
-        except asyncio.CancelledError:
-            return False # the prompt was cancelled -> Cancel plotting
+        except asyncio.CancelledError as e:
+            if len(e.args) > 0 and e.args[0] == 'cancel_prompt_ui':
+                return False # the prompt was intentionally cancelled -> Cancel plotting
+            # re-raise the exception in all other cases to not f-up asyncio
+            raise e
         
         res = res['id']
         if res == 'pos': # Start Plot
@@ -589,6 +592,9 @@ async def start(app):
     global print
     print = app.print
     
+    global tprint
+    tprint = app.tprint
+    
     global prompt_ui
     prompt_ui = app.prompt_ui
     
@@ -596,7 +602,7 @@ async def start(app):
     print_status = app.update_header
     
     if TESTING: print('[yellow]TESTING MODE enabled')
-    # if RESUME_QUEUE: await resume_queue()
+    if RESUME_QUEUE: await resume_queue()
     
     await align_async()
     await prompt_setup()
