@@ -135,7 +135,9 @@ def save_svg(job, overwrite_existing = False):
     sec = math.ceil(job["time_estimate"] % 60)
     position = f'{(job["position"] + 1):03}_' if 'position' in job and job['status'] in ['waiting', 'plotting'] else ''
     
-    filename = f'{position}{job["received"]}_[{job["client"][0:10]}]_{job["hash"][0:5]}_{min}m{sec}s.svg'
+    ink = f'{(job["stats"]["travel_ink"] / 1000):.1f}'
+    travel = f'{(job["stats"]["travel"] / 1000):.1f}'
+    filename = f'{position}{job["received"]}_[{job["client"][0:10]}]_{job["hash"][0:5]}_{travel}m_{min}m{sec}s.svg'
     filename = os.path.join(STATUS_FOLDERS[job['status']], filename)
     
     # remove previous save
