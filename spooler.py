@@ -113,12 +113,19 @@ def status():
         'queue_size': num_jobs(),
     }
 
-def timestamp(date = None):
+def timestamp_str_full(date = None):
     if date == None:
         # make timezone aware timestamp: https://stackoverflow.com/a/39079819
         date = datetime.now(timezone.utc)
         date = date.replace(tzinfo=date.astimezone().tzinfo)
     return date.strftime("%Y%m%d_%H%M%S.%f_UTC%z")
+
+def timestamp_str(date = None):
+    if date == None:
+        # make timezone aware timestamp: https://stackoverflow.com/a/39079819
+        date = datetime.now(None) # None ... use current timezone
+        date = date.replace(tzinfo=date.astimezone().tzinfo)
+    return date.strftime("%Y%m%d_%H%M%S.%f")[:-3] # trim last three digits of microsecond
 
 
 def save_svg(job, overwrite_existing = False):
@@ -128,7 +135,7 @@ def save_svg(job, overwrite_existing = False):
     sec = math.ceil(job["time_estimate"] % 60)
     position = f'{(job["position"] + 1):03}_' if 'position' in job and job['status'] in ['waiting', 'plotting'] else ''
     
-    filename = f'{position}{job["received"]}_{job["client"][0:10]}_{job["hash"][0:5]}_{min}m{sec}s.svg'
+    filename = f'{position}{job["received"]}_[{job["client"][0:10]}]_{job["hash"][0:5]}_{min}m{sec}s.svg'
     filename = os.path.join(STATUS_FOLDERS[job['status']], filename)
     
     # remove previous save
@@ -182,7 +189,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     job['cancel_cb'] = cancel_cb
     job['error_cb'] = error_cb
     if 'received' not in job or job['received'] == None:
-        job['received'] = timestamp()
+        job['received'] = timestamp_str()
     
     # speed
     if 'speed' in job: job['speed'] = max( min(job['speed'], 100), MIN_SPEED ) # limit speed  (MIN_SPEED, 100)
@@ -594,7 +601,8 @@ async def resume_queue_from_disk():
             root = ElementTree.fromstring(svg)
             def attr(attr, ns = 'https://sketch.process.studio/turtle-graphics'):
                 return root.get(attr if ns == None else "{" + ns + "}" + attr)
-            match = re.search('\\d{8}_\\d{6}.\\d{6}_UTC[+-]\\d{4}', os.path.basename(filename))
+            # match = re.search('\\d{8}_\\d{6}.\\d{6}_UTC[+-]\\d{4}', os.path.basename(filename))
+            match = re.search('\\d{8}_\\d{6}', os.path.basename(filename))
             received_ts = None if match == None else match.group(0)
             job = {
                 'loaded_from_file': True,
