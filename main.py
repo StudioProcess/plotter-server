@@ -144,6 +144,9 @@ async def run_server(app):
         # await asyncio.Future() # run forever
         await spooler.start(app) # run forever
 
+class MyDataTable(DataTable):
+    def on_click(self, event):
+        self.app.on_queue_click(event)
 
 class App(TextualApp):
     prompt_future = None
@@ -151,7 +154,9 @@ class App(TextualApp):
     def compose(self):
         global header, queue, log, footer
         header = Header(icon = '🖨️', show_clock = True, time_format = '%H:%M')
-        queue = DataTable(id = 'queue')
+        
+        queue = MyDataTable(id = 'queue')
+        
         log = RichLog(markup=True)
         footer = Footer(id="footer", show_command_palette=True)
         
@@ -242,6 +247,8 @@ class App(TextualApp):
         queue.styles.height = '1fr'
         queue.add_columns(*QUEUE_HEADERS)
         queue.cursor_type = 'row'
+        queue.zebra_stripes = True
+        queue.show_cursor = False
         
         self.update_header()
         
@@ -354,6 +361,11 @@ class App(TextualApp):
     
     @on(Key)
     async def on_queue_hotkey(self, event):
+        if event.key in ['up', 'down'] and queue.row_count > 0:
+            queue.show_cursor = True
+        if queue.show_cursor == False:
+            return
+        
         if event.key in ['backspace', 'i', 'k', '1', '0', 'space']:
             if queue.row_count == 0: return # nothing in list
             client = queue.ordered_rows[queue.cursor_row].key.value
@@ -381,6 +393,10 @@ class App(TextualApp):
             elif (event.key == 'space'):
                 self.preview_job( spooler.job_by_client(client) )
     
+    def on_queue_click(self, event):
+        if queue.row_count > 0:
+            queue.show_cursor = True
+    
     def job_to_row(self, job, idx):
         return (idx, job['client'], job['hash'][:5], job['stats']['count'], job['stats']['layer_count'], int(job['stats']['travel'])/1000, int(job['stats']['travel_ink'])/1000, job['format'], job['speed'], f'{math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02}')
         
@@ -391,10 +407,12 @@ class App(TextualApp):
             job_current.add_row( *self.job_to_row(job, 1), key=job['client'] )
     
     def update_job_queue(self):
+        if queue.row_count == 0: queue.show_cursor = False
         # remember selected client
         client = None
-        if queue.row_count > 0:
+        if queue.row_count > 0 and queue.show_cursor:
             client = queue.ordered_rows[queue.cursor_row].key.value
+            # print('selected client:', client)
         
         queue.clear()
         for idx, job in enumerate(spooler.jobs()):
@@ -403,9 +421,11 @@ class App(TextualApp):
         # recall client (if possible)
         if client:
             try:
+                # print('select row:', queue.get_row_index(client))
                 queue.move_cursor(row=queue.get_row_index(client))
             except RowDoesNotExist:
-                pass
+                # print('row does not exist')
+                queue.show_cursor = False
     
     def cancel_prompt_ui(self):
         if self.prompt_future != None and not self.prompt_future.done():
