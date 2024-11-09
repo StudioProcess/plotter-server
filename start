@@ -11,17 +11,25 @@ quit() {
 trap quit EXIT
 
 usage() {
-    echo "Usage: $(basename $0) [-f <0|1>] [-n <0|1>]"
+    echo "Usage: $(basename $0) [-d] [-f <0|1>] [-n <0|1>]"
+    echo "       -h ... Show this help"
+    echo "       -d ... Dev Mode (Defaults -f to false)"
     echo "       -f ... Start frpc (Default 1)"
-    echo "       -n ... Start ngrok (Default 0)" 
+    echo "       -n ... Start ngrok (Default 0)"
     exit 1
 }
 
+dev=false
 start_frpc=true
 start_ngrok=false
 
-while getopts ":f:n:h" opts; do
+while getopts ":f:n:h:d" opts; do
     case "${opts}" in
+        d)
+        dev=true
+            start_frpc=false
+            start_ngrok=false
+            ;;
         f)
             f=${OPTARG}
             [[ $f -eq 0 || $f -eq 1 ]] || usage
@@ -57,4 +65,8 @@ if $start_ngrok; then
 fi
 
 # run plotter-server
-python main.py
+if $dev; then
+    textual run --dev main.py
+else
+    python main.py
+fi
