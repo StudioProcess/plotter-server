@@ -8,9 +8,12 @@ import re
 import hashlib
 import async_queue
 
-FOLDER_WAITING  ='svgs/0_waiting'
-FOLDER_CANCELED ='svgs/1_canceled'
-FOLDER_FINISHED ='svgs/2_finished'
+STATUS_FOLDERS = {
+    'waiting'  : 'svgs/0_waiting',
+    'plotting' : 'svgs/0_waiting',
+    'canceled' : 'svgs/1_canceled',
+    'finished' : 'svgs/2_finished'
+}
 PEN_POS_UP = 60 # Default: 60
 PEN_POS_DOWN = 40 # Default: 40
 MIN_SPEED = 10 # percent
@@ -117,30 +120,35 @@ def timestamp(date = None):
         date = date.replace(tzinfo=date.astimezone().tzinfo)
     return date.strftime("%Y%m%d_%H%M%S.%f_UTC%z")
 
-# status: 'waiting' | 'canceled' | 'finished'
-def save_svg(job, status):
-    if status not in ['waiting', 'canceled', 'finished']:
-        return False
-    filename = f'{job["received"]}_{job["client"][0:10]}_{job["hash"][0:5]}.svg'
-    files = {
-        'waiting': os.path.join(FOLDER_WAITING, filename),
-        'canceled': os.path.join(FOLDER_CANCELED, filename),
-        'finished': os.path.join(FOLDER_FINISHED, filename),
-    }
-    for key, file in files.items():
-        if key == status:
-            os.makedirs( os.path.dirname(file), exist_ok=True)
-            with open(file, 'w', encoding='utf-8') as f: f.write(job['svg'])
-            job['save_path'] = file
-        else:
-            try:
-                os.remove(file)
-            except:
-                pass
-    return True
+
+def save_svg(job, overwrite_existing = False):
+    if job['status'] not in ['waiting', 'plotting', 'canceled', 'finished']: return False
     
-def save_svg_async(*args, **kwargs):
-    return asyncio.to_thread(save_svg, *args, **kwargs)
+    min = int(job["time_estimate"] / 60)
+    sec = math.ceil(job["time_estimate"] % 60)
+    position = f'{(job["position"] + 1):03}_' if 'position' in job and job['status'] in ['waiting', 'plotting'] else ''
+    
+    filename = f'{position}{job["received"]}_{job["client"][0:10]}_{job["hash"][0:5]}_{min}m{sec}s.svg'
+    filename = os.path.join(STATUS_FOLDERS[job['status']], filename)
+    
+    # remove previous save
+    if 'save_path' in job and job['save_path'] != filename:
+        try:
+            # print('removing', job['save_path'])
+            os.remove(job['save_path'])
+        except:
+            pass
+    
+    # save file
+    if not os.path.isfile(filename) or overwrite_existing:
+        # print('writing', filename)
+        os.makedirs( os.path.dirname(filename), exist_ok=True)
+        with open(filename, 'w', encoding='utf-8') as f: f.write(job['svg'])
+        job['save_path'] = filename
+    return True
+
+# def save_svg_async(*args, **kwargs):
+#     return asyncio.to_thread(save_svg, *args, **kwargs)
 
 
 # Updated pre version 4 SVGs, so they are compatible with resume queue
@@ -166,6 +174,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
         await callback( error_cb, 'Cannot add job, you already have a job queued!', job )
         return False
     
+    job['status'] = 'waiting'
     job['cancel'] = False
     # save callbacks
     job['queue_position_cb'] = queue_position_cb
@@ -190,7 +199,8 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     
     update_svg(job)
     await queue.put(job)
-    await save_svg_async(job, 'waiting')
+    job['position'] = job_pos(job)
+    save_svg(job)
     
     await _notify_queue_size() # notify new queue size
     await _notify_queue_positions()
@@ -207,7 +217,9 @@ async def cancel(client, force = False):
     if client not in _jobs: return False
     job = _jobs[client]
     if job == _current_job and _status == 'plotting': return # can't cancel if plotting
+    job['status'] = 'canceled'
     job['cancel'] = True # set cancel flag
+    job['position'] = None
     del _jobs[client]
     
     # remove from queue
@@ -221,7 +233,8 @@ async def cancel(client, force = False):
     await _notify_queue_size() # notify new queue size
     await _notify_queue_positions() # notify queue positions (might have changed for some)
     print(f'❌ [red]Canceled job \\[{job["client"]}]')
-    await save_svg_async(job, 'canceled')
+    save_svg(job)
+    update_positions_and_save()
     return True
 
 async def cancel_current_job(force = True):
@@ -229,6 +242,8 @@ async def cancel_current_job(force = True):
 
 async def finish_current_job():
     global _current_job
+    _current_job['status'] = 'finished'
+    _current_job['position'] = None
     await callback( _current_job['done_cb'], _current_job ) # notify job done
     del _jobs[ _current_job['client'] ] # remove from jobs index
     finished_job = _current_job
@@ -237,15 +252,28 @@ async def finish_current_job():
     await _notify_queue_size() # notify queue size
     print(f'✅ [green]Finished job \\[{finished_job["client"]}]')
     _status = 'waiting'
-    await save_svg_async(finished_job, 'finished')
+    save_svg(finished_job)
+    update_positions_and_save()
     return True
 
-
+# current job: 0 (if plotting or waiting, check job['status'])
 def job_pos(job):
-    if (job == _current_job):
-        if _status == 'plotting': return -1
-        return 0
-    return queue.index(job) + 1
+    if (job == _current_job): return 0
+    try:
+        return queue.index(job) + 1
+    except ValueError:
+        return None
+
+def update_position(job):
+    if job == None: return
+    job['position'] = job_pos(job)
+
+def update_positions_and_save():
+    # print('updating positions')
+    for job in _jobs.values():
+        update_position(job)
+        # print(job['client'], job['position'])
+        save_svg(job, overwrite_existing=False)
 
 # positions
 # 0 .. current job
@@ -256,10 +284,10 @@ async def move(client, new_pos):
     # print('move', client, new_pos)
     job = _jobs[client]
     current_pos = job_pos(job)
-    # print('current pos', current_pos)
+    # print('move: current pos', current_pos)
     # cannot move if job is already plotting
-    if current_pos == -1:
-        # print('already plotting, can\'t move')
+    if job['status'] == 'plotting':
+        # print('move: already plotting, can\'t move')
         return
     
     # normalize new_pos
@@ -278,7 +306,7 @@ async def move(client, new_pos):
     
     # nothing to do
     if new_pos == current_pos:
-        # print('nothing to do')
+        # print('move: nothing to do')
         return
     
     # move job from queue to current job
@@ -299,6 +327,9 @@ async def move(client, new_pos):
     else:
         # print('move within queue')
         queue.move(current_pos-1, new_pos-1)
+    
+    # update 'position' attribute of all jobs and save svgs
+    update_positions_and_save()
     
     await _notify_queue_size()
     await _notify_queue_positions() # notify queue positions (might have changed for some)
@@ -365,6 +396,7 @@ def cycle():
 
 def plot(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, options_cb = None, return_ad = False):
     if 'svg' not in job: return 0
+    job['status'] = 'plotting'
     speed = job['speed'] / 100
     with capture_output(print_axidraw, print_axidraw):
         ad = axidraw.AxiDraw()
@@ -440,6 +472,7 @@ def simulate(job):
     
     ad = plot(job, align_after=False, align_after_pause=False, options_cb=_options_cb, return_ad=True)
     update_stats(ad)
+    job['status'] = 'waiting' # reset status (has been set to 'plotting' by plot())
     
     while ad.errors.code == 1: # Paused programmatically
         ad = resume_plot(job, align_after=False, align_after_pause=False, options_cb=_options_cb, return_ad=True)
@@ -483,7 +516,7 @@ async def prompt_waiting(message = 'Setup as needed'):
     while True:
         res = await prompt_ui('waiting', message)
         if not res:
-            print('prompt cancelled')
+            # print('prompt cancelled')
             return False # the prompt was intentionally cancelled
         
         res = res['id']
@@ -548,10 +581,10 @@ async def prompt_resume_plot(message, job):
         elif res == 'neg': # Done
             return False
 
-async def resume_queue():
+async def resume_queue_from_disk():
     import xml.etree.ElementTree as ElementTree
-    list = sorted(os.listdir(FOLDER_WAITING))
-    list = [ os.path.join(FOLDER_WAITING, x) for x in list if x.endswith('.svg') ]
+    list = sorted(os.listdir(STATUS_FOLDERS['waiting']))
+    list = [ os.path.join(STATUS_FOLDERS['waiting'], x) for x in list if x.endswith('.svg') ]
     resumable_jobs = []
     for filename in list:
         # print('Loading ', filename)
@@ -582,7 +615,8 @@ async def resume_queue():
                 'format': attr('format'),
                 'size': [int(attr('width_mm')), int(attr('height_mm'))],
                 'hash': hashlib.sha1(svg.encode('utf-8')).hexdigest(),
-                'received': received_ts
+                'received': received_ts,
+                'save_path': filename,
             }
             resumable_jobs.append(job)
         except:
@@ -617,7 +651,7 @@ async def start(app):
     print_status = app.update_header
     
     if TESTING: print('[yellow]TESTING MODE enabled')
-    if RESUME_QUEUE: await resume_queue()
+    if RESUME_QUEUE: await resume_queue_from_disk()
     
     await align_async()
     # await prompt_setup()
@@ -629,6 +663,7 @@ async def start(app):
             asyncio.create_task( prompt_waiting() ) # this allows align/cycle
         _current_job = await queue.get()
         cancel_prompt_waiting()
+        update_positions_and_save()
         
         if not _current_job['cancel']: # skip if job is canceled
             set_status('confirm_plot')
@@ -658,7 +693,7 @@ async def start(app):
                 if error == 0:
                     if REPEAT_JOBS:
                         print(f'[blue]Done ({loop}x) job \\[{_current_job["client"]}]')
-                        set_status('confirm_plot')
+                        set_status('plotting')
                         repeat = await prompt_repeat_plot(f'[yellow]Repeat[/yellow] ({loop+1}) job \\[{_current_job["client"]}] ?')
                         if repeat: continue
                     await finish_current_job()

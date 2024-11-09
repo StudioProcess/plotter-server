@@ -1,7 +1,7 @@
 USE_ZEROCONF      = 0
 ZEROCONF_HOSTNAME = 'plotter'
 
-USE_PORKBUN         = 1
+USE_PORKBUN         = 0
 PORKBUN_ROOT_DOMAIN = 'process.tools'
 PORKBUN_SUBDOMAIN   = 'plotter-local'
 PORKBUN_TTL         = 600
@@ -265,8 +265,9 @@ class App(TextualApp):
             if not task.cancelled(): # not a intentional exit
                 ex = task.exception()
                 if ex != None:
-                    tprint('server task exception')
-                    tprint(ex)
+                    import traceback
+                    tprint('Server task exception:')
+                    tprint(''.join(traceback.format_exception(ex)))
                     self.exit()
             
         server_task.add_done_callback(on_server_task_exit)
@@ -399,7 +400,7 @@ class App(TextualApp):
         for idx, job in enumerate(spooler.jobs()):
             queue.add_row( *self.job_to_row(job, idx+1), key=job['client'] )
         
-        # recall client
+        # recall client (if possible)
         if client:
             try:
                 queue.move_cursor(row=queue.get_row_index(client))
