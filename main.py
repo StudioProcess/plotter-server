@@ -30,6 +30,7 @@ from textual.widgets import Button, DataTable, RichLog, Footer, Header, Static, 
 from textual.widgets.data_table import RowDoesNotExist
 from textual.containers import Horizontal, Vertical
 from hotkey_button import HotkeyButton
+from header_timer import HeaderTimer
 
 import asyncio
 import websockets
@@ -38,6 +39,7 @@ import json
 import math
 import subprocess
 import porkbun
+import functools
 
 
 app = None
@@ -153,7 +155,7 @@ class App(TextualApp):
     
     def compose(self):
         global header, queue, log, footer
-        header = Header(icon = '🖨️', show_clock = True, time_format = '%H:%M')
+        header = HeaderTimer(icon = '🖨️', show_clock = True, time_format = '%H:%M')
         
         queue = MyDataTable(id = 'queue')
         
@@ -296,6 +298,8 @@ class App(TextualApp):
         status = spooler.status()
         self.title = status['status_desc']
         self.sub_title = f'{num_clients} Clients – {spooler.num_jobs()} Jobs'
+        total_secs = functools.reduce(lambda acc, x: acc + x['time_estimate'], spooler.jobs(), 0)
+        header.time_seconds = total_secs
     
     def bind(self, *args, **kwargs):
         super().bind(*args, **kwargs)
