@@ -491,7 +491,7 @@ class App(TextualApp):
                 b_minus.disabled = False
                 b_preview.disabled = False
             case 'repeat_plot':
-                b_pos.update_hotkey('p', 'Plot again')
+                b_pos.update_hotkey('r', 'Repeat plot')
                 b_pos.variant = 'primary'
                 b_pos.disabled = False
                 
@@ -506,11 +506,11 @@ class App(TextualApp):
                 b_minus.disabled = False
                 b_preview.disabled = False
             case 'resume_plot':
-                b_pos.update_hotkey('p', 'Resume')
+                b_pos.update_hotkey('p', 'Resume plot')
                 b_pos.variant = 'primary'
                 b_pos.disabled = False
                 
-                b_neg.update_hotkey('c', 'Cancel')
+                b_neg.update_hotkey('escape', 'Cancel')
                 b_neg.variant = 'error'
                 b_neg.disabled = False
                 
