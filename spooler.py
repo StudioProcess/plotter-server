@@ -7,6 +7,7 @@ from capture_output import capture_output
 import re
 import hashlib
 import async_queue
+import xml.etree.ElementTree as ElementTree
 
 STATUS_FOLDERS = {
     'waiting'  : 'svgs/0_waiting',
@@ -197,7 +198,7 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     if 'speed' in job: job['speed'] = max( min(job['speed'], 100), MIN_SPEED ) # limit speed  (MIN_SPEED, 100)
     else: job['speed'] = 100
     # format
-    if 'format' not in job: job['format'] = 'A3_LANDSCAPE'
+    if 'format' not in job: job['format'] = 'A4_LANDSCAPE'
     
     # add to jobs index
     _jobs[ job['client'] ] = job
@@ -590,6 +591,44 @@ async def prompt_resume_plot(message, job):
         elif res == 'neg': # Done
             return False
 
+def svg_to_job(svg, filename = None):
+    NS = 'https://sketch.process.studio/turtle-graphics'
+    root = ElementTree.fromstring(svg)
+    
+    def attr(attr, ns = NS):
+        return root.get(attr if ns == None else "{" + ns + "}" + attr)
+    
+    received_ts = None
+    if filename != None:
+        match = re.search('\\d{8}_\\d{6}', os.path.basename(filename))
+        if match != None: received_ts = match.group(0)
+    
+    job = {
+        'loaded_from_file': True,
+        'client': attr('author'),
+        'id': "XYZ",
+        'svg': svg,
+        'stats': {
+            'count': int(attr('count')),
+            'layer_count': int(attr('layer_count')),
+            'oob_count': int(attr('oob_count')),
+            'short_count': int(attr('short_count')),
+            'travel': int(attr('travel')),
+            'travel_ink': int(attr('travel_ink')),
+            'travel_blank': int(attr('travel_blank'))
+        },
+        'timestamp': attr('timestamp'),
+        'speed': int(attr('speed')),
+        'format': attr('format'),
+        'size': [int(attr('width_mm')), int(attr('height_mm'))],
+        'hash': hashlib.sha1(svg.encode('utf-8')).hexdigest(),
+        'received': received_ts,
+        'save_path': filename,
+    }
+    
+    return job
+    
+
 async def resume_queue_from_disk():
     import xml.etree.ElementTree as ElementTree
     list = sorted(os.listdir(STATUS_FOLDERS['waiting']))
@@ -598,36 +637,8 @@ async def resume_queue_from_disk():
     for filename in list:
         # print('Loading ', filename)
         try:
-            with open(filename, 'r') as file:
-                svg = file.read()
-            root = ElementTree.fromstring(svg)
-            def attr(attr, ns = 'https://sketch.process.studio/turtle-graphics'):
-                return root.get(attr if ns == None else "{" + ns + "}" + attr)
-            # match = re.search('\\d{8}_\\d{6}.\\d{6}_UTC[+-]\\d{4}', os.path.basename(filename))
-            match = re.search('\\d{8}_\\d{6}', os.path.basename(filename))
-            received_ts = None if match == None else match.group(0)
-            job = {
-                'loaded_from_file': True,
-                'client': attr('author'),
-                'id': "XYZ",
-                'svg': svg,
-                'stats': {
-                    'count': int(attr('count')),
-                    'layer_count': int(attr('layer_count')),
-                    'oob_count': int(attr('oob_count')),
-                    'short_count': int(attr('short_count')),
-                    'travel': int(attr('travel')),
-                    'travel_ink': int(attr('travel_ink')),
-                    'travel_blank': int(attr('travel_blank'))
-                },
-                'timestamp': attr('timestamp'),
-                'speed': int(attr('speed')),
-                'format': attr('format'),
-                'size': [int(attr('width_mm')), int(attr('height_mm'))],
-                'hash': hashlib.sha1(svg.encode('utf-8')).hexdigest(),
-                'received': received_ts,
-                'save_path': filename,
-            }
+            with open(filename, 'r') as file: svg = file.read()
+            job = svg_to_job(svg, filename)
             resumable_jobs.append(job)
         except:
             print('Error resuming ', filename)

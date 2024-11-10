@@ -263,6 +263,8 @@ class App(TextualApp):
         b_minus.disabled = True
         b_preview.disabled = True
         
+        self.bind('t', 'enqueue_test_job()', description = 'Test job')
+        
         setup_ssl()
         # log.write(log.styles.height)
         
@@ -284,6 +286,11 @@ class App(TextualApp):
         # global spooler_task
         # spooler_task = asyncio.create_task(spooler.start(self))
     
+    async def action_enqueue_test_job(self):
+        from test_job import test_job
+        job = test_job()
+        await spooler.enqueue(test_job())
+        
     def on_resize(self, event):
         pass
         
@@ -310,18 +317,18 @@ class App(TextualApp):
         self._bindings.key_to_bindings.pop(key, None)
         self.refresh_bindings()
     
-    # bindings: [ (key, desc), ... ]
-    # This not a coroutine (no async). It returns a future, which can be awaited from coroutines
-    def prompt(self, bindings, message):
-        # setup bindings
-        self.print(message)
-        self.print(bindings)
-        self.update_bindings([ ('y', 'prompt_response("y")', 'Yes'), ('n', 'prompt_response("n")', 'No') ])
-        
-        # return a future that eventually resolves to the result
-        loop = asyncio.get_running_loop()
-        self.prompt_future = loop.create_future()
-        return self.prompt_future
+    # # bindings: [ (key, desc), ... ]
+    # # This not a coroutine (no async). It returns a future, which can be awaited from coroutines
+    # def prompt(self, bindings, message):
+    #     # setup bindings
+    #     self.print(message)
+    #     self.print(bindings)
+    #     self.update_bindings([ ('y', 'prompt_response("y")', 'Yes'), ('n', 'prompt_response("n")', 'No') ])
+    #
+    #     # return a future that eventually resolves to the result
+    #     loop = asyncio.get_running_loop()
+    #     self.prompt_future = loop.create_future()
+    #     return self.prompt_future
     
     def preview_job(self, job):
         if job != None and 'save_path' in job:
