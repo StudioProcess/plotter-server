@@ -14,6 +14,7 @@ usage() {
     echo "Usage: $(basename $0) [-d] [-f <0|1>] [-n <0|1>]"
     echo "       -h ... Show this help"
     echo "       -d ... Dev Mode"
+    echo "       -c ... Console (Run in second terminal to see output from Dev Mode"
     echo "       -f ... Start frpc (Default 1 except when using -d)"
     echo "       -n ... Start ngrok (Default 0)"
     exit 1
@@ -24,10 +25,14 @@ start_frpc=true
 start_ngrok=false
 
 # A letter followed by a colon means the switch takes an argument
-while getopts "hdf:n:" opts; do
+while getopts "hcdf:n:" opts; do
     case "${opts}" in
         h)
             usage
+            exit 1
+            ;;
+        c)
+            textual console -x event -x debug
             exit 0
             ;;
         d)
