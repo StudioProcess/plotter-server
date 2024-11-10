@@ -263,7 +263,8 @@ class App(TextualApp):
         b_minus.disabled = True
         b_preview.disabled = True
         
-        self.bind('t', 'enqueue_test_job()', description = 'Test job')
+        self.bind('t', 'enqueue_test_job', description = 'Test job')
+        self.bind('o', 'open_svg_folder', description = 'Open SVG folder')
         
         setup_ssl()
         # log.write(log.styles.height)
@@ -290,6 +291,10 @@ class App(TextualApp):
         from test_job import test_job
         job = test_job()
         await spooler.enqueue(test_job())
+    
+    def action_open_svg_folder(self):
+        sub_coro = asyncio.create_subprocess_exec('open', spooler.STATUS_FOLDERS['waiting'], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        asyncio.create_task(sub_coro)
         
     def on_resize(self, event):
         pass
