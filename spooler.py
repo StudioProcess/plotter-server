@@ -686,6 +686,8 @@ async def start(app):
             
             # plot (and retry on error or repeat)
             loop = 0 # number or tries/repetitions
+            layer = 0 # number of programmatic pauses (error 1)
+            interrupt = 0 # number of stops by button press (error 102) or keyboard interrupt (103)
             resume = False # flag indicating resume (vs. plotting from start)
             while True:
                 if (resume):
@@ -704,7 +706,7 @@ async def start(app):
                     if REPEAT_JOBS:
                         print(f'[blue]Done ({loop}x) job \\[{_current_job["client"]}]')
                         set_status('plotting')
-                        repeat = await prompt_repeat_plot(f'[yellow]Repeat[/yellow] ({loop+1}) job \\[{_current_job["client"]}] ?')
+                        repeat = await prompt_repeat_plot(f'[yellow]Repeat ({loop+1}) job[/yellow] \\[{_current_job["client"]}] ?')
                         if repeat: continue
                     await finish_current_job()
                     break
@@ -712,7 +714,14 @@ async def start(app):
                 elif error in PLOTTER_PAUSED:
                     print(f'[yellow]Plotter: {get_error_msg(error)}')
                     set_status('paused')
-                    ready = await prompt_resume_plot(f'[blue]Continue[/blue] job \\[{_current_job["client"]}] ?', _current_job)
+                    if error in [1]:
+                        layer += 1
+                        prompt = f"[blue]Resume ({layer+1}/{_current_job['layers']}) with next layer[/blue]"
+                    elif error in [102, 103]:
+                        interrupt += 1
+                        prompt = f"[blue]Resume ({interrupt+1}) interrupted[/blue] job"
+                        if _current_job['layers'] > 1: prompt += f" on layer ({layer+1}/{_current_job['layers']})"
+                    ready = await prompt_resume_plot(f'{prompt} \\[{_current_job["client"]}] ?', _current_job)
                     if not ready:
                         await cancel_current_job()
                         break
