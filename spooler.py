@@ -482,11 +482,12 @@ def simulate(job):
     
     ad = plot(job, align_after=False, align_after_pause=False, options_cb=_options_cb, return_ad=True)
     update_stats(ad)
-    job['status'] = 'waiting' # reset status (has been set to 'plotting' by plot())
     
     while ad.errors.code == 1: # Paused programmatically
         ad = resume_plot(job, align_after=False, align_after_pause=False, options_cb=_options_cb, return_ad=True)
         update_stats(ad)
+    
+    job['status'] = 'waiting' # reset status (has been set to 'plotting' by plot())
     
     return stats
 
