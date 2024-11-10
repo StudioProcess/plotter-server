@@ -13,8 +13,8 @@ trap quit EXIT
 usage() {
     echo "Usage: $(basename $0) [-d] [-f <0|1>] [-n <0|1>]"
     echo "       -h ... Show this help"
-    echo "       -d ... Dev Mode (Defaults -f to false)"
-    echo "       -f ... Start frpc (Default 1)"
+    echo "       -d ... Dev Mode"
+    echo "       -f ... Start frpc (Default 1 except when using -d)"
     echo "       -n ... Start ngrok (Default 0)"
     exit 1
 }
@@ -23,10 +23,15 @@ dev=false
 start_frpc=true
 start_ngrok=false
 
-while getopts ":f:n:h:d" opts; do
+# A letter followed by a colon means the switch takes an argument
+while getopts "hdf:n:" opts; do
     case "${opts}" in
+        h)
+            usage
+            exit 0
+            ;;
         d)
-        dev=true
+            dev=true
             start_frpc=false
             start_ngrok=false
             ;;
@@ -40,14 +45,14 @@ while getopts ":f:n:h:d" opts; do
             [[ $n -eq 0 || $n -eq 1 ]] || usage
             [[ $n -eq 1 || -z $n ]] && start_ngrok=true || start_ngrok=false
             ;;
-        h)
-            usage
-            ;;
         *)
             usage
+            exit 1
             ;;
     esac
 done
+
+# remove switches from $@
 shift $((OPTIND-1))
 
 if $start_frpc; then
