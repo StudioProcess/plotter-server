@@ -1,13 +1,13 @@
-import asyncio
-from pyaxidraw import axidraw
-from datetime import datetime, timezone
-import math
-import os
-from capture_output import capture_output
-import re
-import hashlib
-import async_queue
-import xml.etree.ElementTree as ElementTree
+TESTING = False # Don't actually connect to AxiDraw, just simulate plotting
+REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
+RESUME_QUEUE = True # Resume plotting queue after quitting/restarting
+ALIGN_AFTER = True # Align plotter after success or error
+ALIGN_AFTER_PAUSE = False # Align plotter after pause (programmatic, stop button, keyboard interrupt)
+
+PEN_POS_UP = 60 # Default: 60
+PEN_POS_DOWN = 40 # Default: 40
+MIN_SPEED = 10 # percent
+SIMULATION_TIMEOUT = 8 # seconds
 
 STATUS_FOLDERS = {
     'waiting'  : 'svgs/0_waiting',
@@ -16,10 +16,6 @@ STATUS_FOLDERS = {
     'finished' : 'svgs/2_finished',
     'error'    : 'svgs/3_error'
 }
-PEN_POS_UP = 60 # Default: 60
-PEN_POS_DOWN = 40 # Default: 40
-MIN_SPEED = 10 # percent
-SIMULATION_TIMEOUT = 8 # seconds
 
 # KEY_DONE = ( 'd', '(D)one' )
 # KEY_REPEAT = ( 'r', '(R)epeat' )
@@ -39,12 +35,16 @@ STATUS_DESC = {
     'plotting': 'Plotting'
 }
 
-TESTING = True # Don't actually connect to AxiDraw, just simulate plotting
-REPEAT_JOBS = True # Ask to repeat a plot after a sucessful print
-RESUME_QUEUE = True # Resume plotting queue after quitting/restarting
-ALIGN_AFTER = True # Align plotter after success or error
-ALIGN_AFTER_PAUSE = False # Align plotter after pause (programmatic, stop button, keyboard interrupt)
-
+import asyncio
+from pyaxidraw import axidraw
+from datetime import datetime, timezone
+import math
+import os
+from capture_output import capture_output
+import re
+import hashlib
+import async_queue
+import xml.etree.ElementTree as ElementTree
 
 
 queue_size_cb = None

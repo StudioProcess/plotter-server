@@ -1,7 +1,7 @@
 USE_ZEROCONF      = 0
 ZEROCONF_HOSTNAME = 'plotter'
 
-USE_PORKBUN         = 0
+USE_PORKBUN         = 1
 PORKBUN_ROOT_DOMAIN = 'process.tools'
 PORKBUN_SUBDOMAIN   = 'plotter-local'
 PORKBUN_TTL         = 600
