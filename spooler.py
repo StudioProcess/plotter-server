@@ -13,11 +13,13 @@ STATUS_FOLDERS = {
     'waiting'  : 'svgs/0_waiting',
     'plotting' : 'svgs/0_waiting',
     'canceled' : 'svgs/1_canceled',
-    'finished' : 'svgs/2_finished'
+    'finished' : 'svgs/2_finished',
+    'error'    : 'svgs/3_error'
 }
 PEN_POS_UP = 60 # Default: 60
 PEN_POS_DOWN = 40 # Default: 40
 MIN_SPEED = 10 # percent
+SIMULATION_TIMEOUT = 8 # seconds
 
 # KEY_DONE = ( 'd', '(D)one' )
 # KEY_REPEAT = ( 'r', '(R)epeat' )
@@ -130,14 +132,14 @@ def timestamp_str(date = None):
 
 
 def save_svg(job, overwrite_existing = False):
-    if job['status'] not in ['waiting', 'plotting', 'canceled', 'finished']: return False
+    if job['status'] not in STATUS_FOLDERS.keys(): return False
     
-    min = int(job["time_estimate"] / 60)
-    sec = math.ceil(job["time_estimate"] % 60)
+    min = int(job["time_estimate"] / 60) if "time_estimate" in job else 0
+    sec = math.ceil(job["time_estimate"] % 60) if "time_estimate" in job else 0
     position = f'{(job["position"] + 1):03}_' if 'position' in job and job['status'] in ['waiting', 'plotting'] else ''
     
-    ink = f'{(job["stats"]["travel_ink"] / 1000):.1f}'
-    travel = f'{(job["stats"]["travel"] / 1000):.1f}'
+    ink = f'{(job["stats"]["travel_ink"] / 1000):.1f}' if "stats" in job else 0
+    travel = f'{(job["stats"]["travel"] / 1000):.1f}' if "stats" in job else 0
     filename = f'{position}{job["received"]}_[{job["client"][0:10]}]_{job["hash"][0:5]}_{travel}m_{min}m{sec}s.svg'
     filename = os.path.join(STATUS_FOLDERS[job['status']], filename)
     
@@ -203,7 +205,16 @@ async def enqueue(job, queue_position_cb = None, done_cb = None, cancel_cb = Non
     # add to jobs index
     _jobs[ job['client'] ] = job
     print(f'New job \\[{job["client"]}] {job["hash"][0:5]}')
-    sim = await simulate_async(job) # run simulation
+    try:
+        async with asyncio.timeout(SIMULATION_TIMEOUT):
+            sim = await simulate_async(job) # run simulation
+    except TimeoutError:
+        print(f'⚠️  [red]Timeout on simulating job \\[{job["client"]}] {job["hash"][0:5]}')
+        job['status'] = 'error'
+        save_svg(job)
+        await callback( error_cb, 'Cannot add job, it took to long to simulate!', job )
+        return False
+    
     job['time_estimate'] = sim['time_estimate']
     job['layers'] = sim['layers']
     
