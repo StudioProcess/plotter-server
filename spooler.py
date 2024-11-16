@@ -735,11 +735,11 @@ async def start(app):
                     set_status('paused')
                     if error in [1]:
                         layer += 1
-                        prompt = f"[blue]Resume ({layer+1}/{_current_job['layers']}) with next layer[/blue]"
+                        prompt = f"[blue]Continue layer ({layer+1}/{_current_job['layers']})[/blue]"
                     elif error in [102, 103]:
                         interrupt += 1
-                        prompt = f"[blue]Resume ({interrupt+1}) interrupted[/blue] job"
-                        if _current_job['layers'] > 1: prompt += f" on layer ({layer+1}/{_current_job['layers']})"
+                        prompt = f"[blue]Continue ({interrupt+1}) interrupted job[/blue]"
+                        if _current_job['layers'] > 1: prompt += f" layer ({layer+1}/{_current_job['layers']})"
                     ready = await prompt_resume_plot(f'{prompt} \\[{_current_job["client"]}] ?', _current_job)
                     if ready: resume = True
                     else: resume = 'skip_to_repeat' # Skip to asking to repeat job
