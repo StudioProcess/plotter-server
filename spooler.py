@@ -558,6 +558,9 @@ async def prompt_start_plot(message):
         elif res == 'neg': # Cancel
             return False
 
+async def prompt_plotting(message = ''):
+    return await prompt_ui('plotting', message);
+
 async def prompt_repeat_plot(message):
     while True:
         res = await prompt_ui('repeat_plot', message)
@@ -702,6 +705,7 @@ async def start(app):
             interrupt = 0 # number of stops by button press (error 102) or keyboard interrupt (103)
             resume = False # flag indicating resume (vs. plotting from start)
             while True:
+                await prompt_plotting() # this returns immediately
                 if (resume):
                     print(f'🖨️  [yellow]Resuming job \\[{_current_job["client"]}] ...')
                     set_status('plotting')

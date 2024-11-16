@@ -1,7 +1,7 @@
 USE_ZEROCONF      = 0
 ZEROCONF_HOSTNAME = 'plotter'
 
-USE_PORKBUN         = 0
+USE_PORKBUN         = 1
 PORKBUN_ROOT_DOMAIN = 'process.tools'
 PORKBUN_SUBDOMAIN   = 'plotter-local'
 PORKBUN_TTL         = 600
@@ -495,6 +495,19 @@ class App(TextualApp):
                 b_plus.disabled = False
                 b_minus.disabled = False
                 b_preview.disabled = False
+            case 'plotting':
+                b_pos.disabled = True
+                
+                b_neg.update_hotkey('escape', 'Pause')
+                b_neg.variant = 'warning'
+                b_neg.disabled = True
+                
+                b_align.disabled = True
+                b_cycle.disabled = True
+                b_home.disabled = True
+                b_plus.disabled = True
+                b_minus.disabled = True
+                b_preview.disabled = False
             case 'repeat_plot':
                 b_pos.update_hotkey('r', 'Repeat plot')
                 b_pos.variant = 'primary'
@@ -533,6 +546,9 @@ class App(TextualApp):
         if self.prompt_future == None or self.prompt_future.done():
             loop = asyncio.get_running_loop()
             self.prompt_future = loop.create_future()
+        
+        if variant == 'plotting': self.prompt_future.set_result(True)
+        
         return self.prompt_future
 
 
