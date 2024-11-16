@@ -1,7 +1,7 @@
 USE_ZEROCONF      = 0
 ZEROCONF_HOSTNAME = 'plotter'
 
-USE_PORKBUN         = 1
+USE_PORKBUN         = 0
 PORKBUN_ROOT_DOMAIN = 'process.tools'
 PORKBUN_SUBDOMAIN   = 'plotter-local'
 PORKBUN_TTL         = 600
@@ -528,8 +528,8 @@ class App(TextualApp):
                 b_pos.variant = 'primary'
                 b_pos.disabled = False
                 
-                b_neg.update_hotkey('escape', 'Cancel')
-                b_neg.variant = 'error'
+                b_neg.update_hotkey('d', 'Done')
+                b_neg.variant = 'warning'
                 b_neg.disabled = False
                 
                 b_align.disabled = False

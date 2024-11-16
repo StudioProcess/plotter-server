@@ -706,7 +706,9 @@ async def start(app):
             resume = False # flag indicating resume (vs. plotting from start)
             while True:
                 await prompt_plotting() # this returns immediately
-                if (resume):
+                if (resume == 'skip_to_repeat'):
+                    error = 0
+                elif resume:
                     print(f'🖨️  [yellow]Resuming job \\[{_current_job["client"]}] ...')
                     set_status('plotting')
                     error = await resume_plot_async(_current_job)
@@ -722,6 +724,7 @@ async def start(app):
                     if REPEAT_JOBS:
                         print(f'[blue]Done ({loop}x) job \\[{_current_job["client"]}]')
                         set_status('plotting')
+                        layer = 0
                         repeat = await prompt_repeat_plot(f'[yellow]Repeat ({loop+1}) job[/yellow] \\[{_current_job["client"]}] ?')
                         if repeat: continue
                     await finish_current_job()
@@ -738,10 +741,8 @@ async def start(app):
                         prompt = f"[blue]Resume ({interrupt+1}) interrupted[/blue] job"
                         if _current_job['layers'] > 1: prompt += f" on layer ({layer+1}/{_current_job['layers']})"
                     ready = await prompt_resume_plot(f'{prompt} \\[{_current_job["client"]}] ?', _current_job)
-                    if not ready:
-                        await cancel_current_job()
-                        break
                     if ready: resume = True
+                    else: resume = 'skip_to_repeat' # Skip to asking to repeat job
                 # Errors
                 else:
                     print(f'[red]Plotter: {get_error_msg(error)}')
