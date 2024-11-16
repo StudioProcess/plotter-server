@@ -14,7 +14,7 @@ usage() {
     echo "Usage: $(basename $0) [-d] [-f <0|1>] [-n <0|1>]"
     echo "       -h ... Show this help"
     echo "       -d ... Dev Mode"
-    echo "       -c ... Console (Run in second terminal to see output from Dev Mode"
+    echo "       -c ... Console (Run in second terminal to see output from Dev Mode)"
     echo "       -f ... Start frpc (Default 1 except when using -d)"
     echo "       -n ... Start ngrok (Default 0)"
     exit 1
@@ -37,7 +37,7 @@ while getopts "hcdf:n:" opts; do
             ;;
         d)
             dev=true
-            start_frpc=false
+            start_frpc=true
             start_ngrok=false
             ;;
         f)
