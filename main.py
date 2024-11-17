@@ -20,7 +20,7 @@ PING_TIMEOUT  = 5
 SHOW_CONNECTION_EVENTS = 0 # Print when clients connect/disconnect
 MAX_MESSAGE_SIZE_MB = 5 # in MB (Default in websockets lib is 2)
 
-QUEUE_HEADERS = ['#', 'Client', 'Hash', 'Lines', 'Layers', 'Travel', 'Ink', 'Format', 'Speed', 'Duration']
+QUEUE_HEADERS = ['#', 'Client', 'Hash', 'Lines', 'Layers', 'Travel', 'Ink', 'Format', 'Speed', 'Duration', 'Status']
 
 import textual
 from textual import on
@@ -419,7 +419,7 @@ class App(TextualApp):
             queue.show_cursor = True
     
     def job_to_row(self, job, idx):
-        return (idx, job['client'], job['hash'][:5], job['stats']['count'], job['stats']['layer_count'], int(job['stats']['travel'])/1000, int(job['stats']['travel_ink'])/1000, job['format'], job['speed'], f'{math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02}')
+        return (idx, job['client'], job['hash'][:5], job['stats']['count'], job['stats']['layer_count'], int(job['stats']['travel'])/1000, int(job['stats']['travel_ink'])/1000, job['format'], job['speed'], f'{math.floor(job["time_estimate"]/60)}:{round(job["time_estimate"]%60):02}', job['status'])
         
     def update_current_job(self):
         job = spooler.current_job()

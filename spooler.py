@@ -300,6 +300,8 @@ def update_positions_and_save():
 # 0 .. current job
 # 1 .. first in queue (idx 0)
 # last .. num_jobs()-1
+
+# plot['status']: 'waiting'|'plotting'|'paused'|'ok'|'error'|'finished'|'canceled'
 async def move(client, new_pos):
     global _current_job
     # print('move', client, new_pos)
@@ -307,7 +309,7 @@ async def move(client, new_pos):
     current_pos = job_pos(job)
     # print('move: current pos', current_pos)
     # cannot move if job is already plotting
-    if job['status'] == 'plotting':
+    if job['status'] in ['plotting', 'paused']:
         # print('move: already plotting, can\'t move')
         return
     
@@ -317,8 +319,8 @@ async def move(client, new_pos):
     # clamp to lower bound
     if new_pos < 0: new_pos = 0
     
-    # can't take place of the plotting job
-    if new_pos == 0 and _status == 'plotting': new_pos = 1
+    # can't take place of the plotting (or paused job)
+    if new_pos == 0 and _status in ['plotting', 'paused']: new_pos = 1
     
     # print(f'move from {current_pos} to {new_pos}')
     
@@ -378,6 +380,8 @@ PLOTTER_ERRORS = {
     104: 'Lost USB connectivity'
 }
 PLOTTER_PAUSED = [ 1, 102, 103 ];
+PLOTTER_OK = [ 0 ];
+PLOTTER_ERROR = [ 101, 104 ];
 
 def get_error_msg(code):
     if code in PLOTTER_ERRORS:
@@ -438,6 +442,11 @@ def plot(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, 
     if (ad.errors.code in PLOTTER_PAUSED and align_after_pause) or \
        (ad.errors.code not in PLOTTER_PAUSED and align_after):
         align()
+    
+    if ad.errors.code in PLOTTER_PAUSED: job['status'] = 'paused'
+    elif ad.errors.code in PLOTTER_OK: job['status'] = 'ok'
+    elif ad.errors.code in PLOTTER_ERROR: job['status'] = 'error'
+    
     if return_ad: return ad
     else: return ad.errors.code
 
@@ -734,7 +743,7 @@ async def start(app):
                 if error == 0:
                     if REPEAT_JOBS:
                         print(f'[blue]Done ({loop}x) job \\[{_current_job["client"]}]')
-                        set_status('plotting')
+                        set_status('confirm_plot')
                         layer = 0
                         repeat = await prompt_repeat_plot(f'[yellow]Repeat ({loop+1}) job[/yellow] \\[{_current_job["client"]}] ?')
                         if repeat: continue
@@ -753,7 +762,9 @@ async def start(app):
                         if _current_job['layers'] > 1: prompt += f" layer ({layer+1}/{_current_job['layers']})"
                     ready = await prompt_resume_plot(f'{prompt} \\[{_current_job["client"]}] ?', _current_job)
                     if ready: resume = True
-                    else: resume = 'skip_to_repeat' # Skip to asking to repeat job
+                    else:
+                        resume = 'skip_to_repeat' # Skip to asking to repeat job
+                        _current_job['status'] = 'ok' # set status to 'successfully printed'
                 # Errors
                 else:
                     print(f'[red]Plotter: {get_error_msg(error)}')
