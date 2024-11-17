@@ -40,6 +40,7 @@ import math
 import subprocess
 import porkbun
 import functools
+import signal
 
 
 app = None
@@ -354,14 +355,18 @@ class App(TextualApp):
     @on(Button.Pressed, '#commands Button')
     def on_button(self, event):
         id = event.button.id
-        if (id == 'preview'):
+        if id == 'preview':
             self.preview_job( spooler.current_job() )
             return
-        if (id == 'plus'):
+        if id == 'plus':
             self.adjust_job_speed( spooler.current_job(), 10 )
             return
-        if (id == 'minus'):
+        if id == 'minus':
             self.adjust_job_speed( spooler.current_job(), -10 )
+            return
+        if id == 'neg' and spooler.status()['status'] == 'plotting':
+            print('[yellow]Interrupting...')
+            signal.raise_signal(signal.SIGINT)
             return
         
         if self.prompt_future != None and not self.prompt_future.done():
@@ -500,7 +505,7 @@ class App(TextualApp):
                 
                 b_neg.update_hotkey('escape', 'Pause')
                 b_neg.variant = 'warning'
-                b_neg.disabled = True
+                b_neg.disabled = False
                 
                 b_align.disabled = True
                 b_cycle.disabled = True
@@ -568,5 +573,9 @@ if __name__ == "__main__":
     app = App()
     print = app.print
     app.tprint = tprint
+    
+    def int_handler(*args): print("[yellow]SIGINT caught")
+    # signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, int_handler)
     
     app.run()
