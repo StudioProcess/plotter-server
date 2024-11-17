@@ -419,13 +419,18 @@ def cycle():
         ad.plot_run()
     return ad.errors.code
 
+def request_plot_pause():
+    global _current_ad
+    if _current_ad != None:
+        _current_ad.transmit_pause_request()
+        _current_ad = None
+
 def plot(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, options_cb = None, return_ad = False):
     if 'svg' not in job: return 0
     job['status'] = 'plotting'
     speed = job['speed'] / 100
     with capture_output(print_axidraw, print_axidraw):
         ad = axidraw.AxiDraw()
-        # ad.keyboard_pause = True # -> causes error: ValueError: signal only works in main thread of the main interpreter
         ad.plot_setup(job['svg'])
         ad.options.model = 2 # A3
         ad.options.reordering = 4 # No reordering
@@ -439,7 +444,10 @@ def plot(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, 
         ad.options.pen_pos_down = PEN_POS_DOWN
         if callable(options_cb): options_cb(ad.options)
         if TESTING: ad.options.preview = True
+        global _current_ad
+        _current_ad = ad # for request_plot_pause()
         job['output_svg'] = ad.plot_run(output=True)
+    _current_ad = None
     if (ad.errors.code in PLOTTER_PAUSED and align_after_pause) or \
        (ad.errors.code not in PLOTTER_PAUSED and align_after):
         align()
@@ -726,17 +734,16 @@ async def start(app):
             interrupt = 0 # number of stops by button press (error 102) or keyboard interrupt (103)
             resume = False # flag indicating resume (vs. plotting from start)
             while True:
-                await prompt_plotting() # this returns immediately
+                set_status('plotting')
+                await prompt_plotting(f'\\[{_current_job["client"]}]') # this returns immediately
                 if (resume == 'skip_to_repeat'):
                     error = 0
                 elif resume:
                     print(f'🖨️  [yellow]Resuming job \\[{_current_job["client"]}] ...')
-                    set_status('plotting')
                     error = await resume_plot_async(_current_job)
                 else:
                     loop += 1
                     print(f'🖨️  [yellow]Plotting job \\[{_current_job["client"]}] ...')
-                    set_status('plotting')
                     await _notify_queue_positions() # notify plotting
                     error = await plot_async(_current_job)
                 resume = False
@@ -746,6 +753,7 @@ async def start(app):
                         print(f'[blue]Done ({loop}x) job \\[{_current_job["client"]}]')
                         set_status('confirm_plot')
                         layer = 0
+                        interrupt = 0
                         repeat = await prompt_repeat_plot(f'[yellow]Repeat ({loop+1}) job[/yellow] \\[{_current_job["client"]}] ?')
                         if repeat: continue
                     await finish_current_job()

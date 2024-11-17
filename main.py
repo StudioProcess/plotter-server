@@ -1,11 +1,11 @@
-USE_ZEROCONF      = 0
-ZEROCONF_HOSTNAME = 'plotter'
-
 USE_PORKBUN         = 1
 PORKBUN_ROOT_DOMAIN = 'process.tools'
 PORKBUN_SUBDOMAIN   = 'plotter-local'
 PORKBUN_TTL         = 600
 PORKBUN_SSL_OUTFILE = 'cert/process.tools.pem'
+
+USE_ZEROCONF      = 0
+ZEROCONF_HOSTNAME = 'plotter'
 
 BIND_IP  = '0.0.0.0'
 PORT     = 0 # Use 0 for default ports (80 for http, 443 for ssl/tls)
@@ -40,7 +40,6 @@ import math
 import subprocess
 import porkbun
 import functools
-import signal
 
 
 app = None
@@ -366,7 +365,7 @@ class App(TextualApp):
             return
         if id == 'neg' and spooler.status()['status'] == 'plotting':
             print('[yellow]Interrupting...')
-            signal.raise_signal(signal.SIGINT)
+            spooler.request_plot_pause()
             return
         
         if self.prompt_future != None and not self.prompt_future.done():
@@ -505,7 +504,7 @@ class App(TextualApp):
                 
                 b_neg.update_hotkey('escape', 'Pause')
                 b_neg.variant = 'warning'
-                b_neg.disabled = True
+                b_neg.disabled = False
                 
                 b_align.disabled = True
                 b_cycle.disabled = True
@@ -573,9 +572,5 @@ if __name__ == "__main__":
     app = App()
     print = app.print
     app.tprint = tprint
-    
-    def int_handler(*args): print("[yellow]SIGINT caught")
-    # signal.signal(signal.SIGINT, signal.SIG_IGN)
-    signal.signal(signal.SIGINT, int_handler)
     
     app.run()
