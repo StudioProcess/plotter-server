@@ -505,7 +505,7 @@ class App(TextualApp):
                 
                 b_neg.update_hotkey('escape', 'Pause')
                 b_neg.variant = 'warning'
-                b_neg.disabled = False
+                b_neg.disabled = True
                 
                 b_align.disabled = True
                 b_cycle.disabled = True

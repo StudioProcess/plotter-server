@@ -425,6 +425,7 @@ def plot(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, 
     speed = job['speed'] / 100
     with capture_output(print_axidraw, print_axidraw):
         ad = axidraw.AxiDraw()
+        # ad.keyboard_pause = True # -> causes error: ValueError: signal only works in main thread of the main interpreter
         ad.plot_setup(job['svg'])
         ad.options.model = 2 # A3
         ad.options.reordering = 4 # No reordering
