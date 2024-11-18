@@ -423,7 +423,6 @@ def request_plot_pause():
     global _current_ad
     if _current_ad != None:
         _current_ad.transmit_pause_request()
-        _current_ad = None
 
 def plot(job, align_after = ALIGN_AFTER, align_after_pause = ALIGN_AFTER_PAUSE, options_cb = None, return_ad = False):
     if 'svg' not in job: return 0
