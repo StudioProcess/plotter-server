@@ -1,5 +1,7 @@
 websockets==10.3
 zeroconf==0.39.1
+textual==0.86.1
+textual-dev==1.6.1
 
 # pyaxidraw module
 #

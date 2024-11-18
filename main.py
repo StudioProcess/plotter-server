@@ -201,6 +201,7 @@ class App(TextualApp):
     
     def on_mount(self):
         self.title = "Plotter"
+        # self.theme = "textual-dark"
         header.tall = True
         col_left.styles.width = '3fr'
         col_right.styles.width = '2fr'
