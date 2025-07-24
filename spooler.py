@@ -663,8 +663,12 @@ def svg_to_job(svg, filename = None):
 
 async def resume_queue_from_disk():
     import xml.etree.ElementTree as ElementTree
-    list = sorted(os.listdir(STATUS_FOLDERS['waiting']))
-    list = [ os.path.join(STATUS_FOLDERS['waiting'], x) for x in list if x.endswith('.svg') ]
+    try:
+        list = sorted(os.listdir(STATUS_FOLDERS['waiting']))
+        list = [ os.path.join(STATUS_FOLDERS['waiting'], x) for x in list if x.endswith('.svg') ]
+    except FileNotFoundError:
+        list = []
+    
     resumable_jobs = []
     for filename in list:
         # print('Loading ', filename)
