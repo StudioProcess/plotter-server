@@ -74,6 +74,12 @@ if $start_ngrok; then
     ngrok_pid=$!
 fi
 
+# Try to activate venv
+if [ -f ./venv/bin/activate ]; then
+    echo "Activating virtual env..."
+    source ./venv/bin/activate
+fi
+
 # run plotter-server
 if $dev; then
     textual run --dev main.py
