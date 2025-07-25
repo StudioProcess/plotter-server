@@ -274,14 +274,16 @@ class App(TextualApp):
         server_task = asyncio.create_task(run_server(self))
         
         def on_server_task_exit(task):
-            tprint('server task exit')
+            print('[red]Server task exit')
             if not task.cancelled(): # not a intentional exit
                 ex = task.exception()
                 if ex != None:
                     import traceback
-                    tprint('Server task exception:')
-                    tprint(''.join(traceback.format_exception(ex)))
-                    self.exit()
+                    print('Server task exited with exception:')
+                    print(''.join(traceback.format_exception(ex)))
+                    global server_task_exception
+                    server_task_exception = ex
+                self.exit() # This line can be removed, exception will then be show inside app log area
             
         server_task.add_done_callback(on_server_task_exit)
         
@@ -561,6 +563,8 @@ class App(TextualApp):
 if __name__ == "__main__":
     global print
     global tprint
+    global server_task_exception
+    
     tprint = print
     
     if USE_PORKBUN:
@@ -575,3 +579,9 @@ if __name__ == "__main__":
     app.tprint = tprint
     
     app.run()
+    
+    print = tprint # restore print function
+    if server_task_exception != None:
+        print()
+        print("Server task exited with exception:")
+        raise server_task_exception
