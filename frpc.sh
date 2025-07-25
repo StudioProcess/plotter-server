@@ -12,14 +12,20 @@ frpc=$(which "frpc")
 if [[ -z $frpc ]]; then
     frpc=$(which "../frp-mac/latest/frpcx")
     if [[ -z $frpc ]]; then
-        >&2 echo "frpc not found; try installing with 'brew install frpc'"
+        >&2 echo "Error: frpc not found; Try installing with 'brew install frpc'"
         exit 1
     fi
 fi
 
->&2 echo "Using frpc: $frpc"
->&2 echo "Plotter URL (via frp): wss://plotter.process.tools"
+if [[ ! -f ./frp.authx ]]; then
+    >&2 echo "Error: Missing frp auth file: frp.auth"
+    exit 1
+fi
+
 source frp.auth # read auth token from file
 export FRP_AUTH_TOKEN
+
+>&2 echo "Using frpc: $frpc"
+>&2 echo "Plotter URL (via frp): wss://plotter.process.tools"
 
 $frpc -c frpc.toml

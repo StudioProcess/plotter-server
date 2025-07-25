@@ -75,7 +75,7 @@ if $start_ngrok; then
 fi
 
 # Try to activate venv
-if [ -f ./venv/bin/activate ]; then
+if [[ -f ./venv/bin/activate ]]; then
     echo "Activating virtual env..."
     source ./venv/bin/activate
 fi
