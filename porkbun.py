@@ -15,6 +15,9 @@ def get_lanip():
     return ipaddrlist[-1]
     
 def get_config():
+    if not os.path.exists(CONFIG_FILE):
+        print(f"Error: Porkbun (DNS Service) config file is missing: {CONFIG_FILE}")
+        exit()
     with open(CONFIG_FILE) as f:
         api_config = json.load(f)
     return api_config
