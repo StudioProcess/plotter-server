@@ -10,14 +10,14 @@ trap quit EXIT
 # find frpc
 frpc=$(which "frpc")
 if [[ -z $frpc ]]; then
-    frpc=$(which "../frp-mac/latest/frpcx")
+    frpc=$(which "../frp-mac/latest/frpc")
     if [[ -z $frpc ]]; then
         >&2 echo "Error: frpc not found; Try installing with 'brew install frpc'"
         exit 1
     fi
 fi
 
-if [[ ! -f ./frp.authx ]]; then
+if [[ ! -f ./frp.auth ]]; then
     >&2 echo "Error: Missing frp auth file: frp.auth"
     exit 1
 fi
